@@ -1,0 +1,983 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Email API for emails project
+
+Transform:
+  - AWS::Serverless-2016-10-31
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues:
+      - prod
+      - test
+    Description: Environment for deploy
+
+Mappings:
+  EnvironmentMap:
+    prod:
+      bucket: emails-service-storage
+      certificateEdge: adce1a21-90b4-4120-8548-111215e582f0
+      certificateRegional: adce1a21-90b4-4120-8548-111215e582f0
+      corsDomain: https://emails.dbowland.com
+      domain: emails-email-api.dbowland.com
+      domainInternal: emails-email-api-internal.dbowland.com
+      logStreamFunction: log-subscriber
+      tableAccounts: emails-email-api-accounts
+      tableReceived: emails-email-api-received
+      userPool: us-east-1_sanAGGlxo
+      userPoolClient: 5mujt7f6h9jh6pudk0t8ekngu
+      zoneId: Z072422417XWM8PIXXSFA
+    test:
+      bucket: emails-service-storage-test
+      certificateEdge: 6a48cba7-feb9-4de5-8cbf-d383140fcdef
+      certificateRegional: 6a48cba7-feb9-4de5-8cbf-d383140fcdef
+      corsDomain: https://emails.bowland.link
+      domain: emails-email-api.bowland.link
+      domainInternal: emails-email-api-internal.bowland.link
+      logStreamFunction: log-subscriber-test
+      tableAccounts: emails-email-api-accounts-test
+      tableReceived: emails-email-api-received-test
+      userPool: us-east-1_la4pAOXAJ
+      userPoolClient: 2dh7s2ciglvp62pp2doepsjspb
+      zoneId: Z01312547RGU1BYKIJXY
+
+Resources:
+  # API Gateway
+
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: v1
+      Auth:
+        ApiKeyRequired: true # sets for all methods
+        UsagePlan:
+          CreateUsagePlan: PER_API
+          Description: Usage plan for emails-email-api
+      Domain:
+        DomainName: !FindInMap [EnvironmentMap, !Ref Environment, domainInternal]
+        CertificateArn: !Sub
+          - 'arn:aws:acm:us-east-1:${AWS::AccountId}:certificate/${Certificate}'
+          - Certificate: !FindInMap [EnvironmentMap, !Ref Environment, certificateEdge]
+        EndpointConfiguration: EDGE
+        Route53:
+          HostedZoneId: !FindInMap [EnvironmentMap, !Ref Environment, zoneId]
+        BasePath:
+          - /v1
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Auth:
+        Authorizers:
+          CognitoAuthorizer:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: !Sub
+                - 'https://cognito-idp.us-east-1.amazonaws.com/${UserPool}'
+                - UserPool: !FindInMap [EnvironmentMap, !Ref Environment, userPool]
+              audience:
+                - !FindInMap [EnvironmentMap, !Ref Environment, userPoolClient]
+        DefaultAuthorizer: CognitoAuthorizer
+      CorsConfiguration:
+        AllowCredentials: true
+        AllowHeaders:
+          - Authorization
+          - Content-Type
+          - X-Amz-Date
+          - X-Amz-Security-Token
+          - X-Api-Key
+        AllowMethods:
+          - DELETE
+          - GET
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+        AllowOrigins:
+          - !FindInMap [EnvironmentMap, !Ref Environment, corsDomain]
+      Domain:
+        BasePath:
+          - /v1
+        CertificateArn: !Sub
+          - 'arn:aws:acm:${AWS::Region}:${AWS::AccountId}:certificate/${Certificate}'
+          - Certificate: !FindInMap [EnvironmentMap, !Ref Environment, certificateRegional]
+        DomainName: !FindInMap [EnvironmentMap, !Ref Environment, domain]
+        EndpointConfiguration: REGIONAL
+      FailOnWarnings: true
+      StageName: v1
+
+  # SAM won't create two Route53 records, so the HttpApi domain name is created separately
+  HttpRecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !Sub '${HttpApi.DomainName.RegionalDomainName}'
+        HostedZoneId: !Sub '${HttpApi.DomainName.RegionalHostedZoneId}'
+      HostedZoneId: !FindInMap [EnvironmentMap, !Ref Environment, zoneId]
+      Name: !FindInMap [EnvironmentMap, !Ref Environment, domain]
+      Type: A
+
+  # Lambda
+
+  ## Accounts
+
+  DeleteAccountFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/delete-account.deleteAccountHandler
+      CodeUri: './dist'
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Description: emails-email-api delete account
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AccountTable
+      Environment:
+        Variables:
+          DYNAMODB_ACCOUNTS_TABLE_NAME: !Ref AccountTable
+      Events:
+        ApiKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts/{accountId}
+            Method: delete
+            Auth:
+              ApiKeyRequired: true
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}
+            Method: delete
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+      Tracing: Active
+
+  DeleteAccountLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: DeleteAccountFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${DeleteAccountFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  DeleteAccountLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref DeleteAccountLogGroup
+
+  GetAccountInternalFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/get-account-internal.getAccountInternalHandler
+      CodeUri: './dist'
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Description: emails-email-api get account internal
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AccountTable
+      Environment:
+        Variables:
+          DYNAMODB_ACCOUNTS_TABLE_NAME: !Ref AccountTable
+      Events:
+        ApiKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts/{accountId}/internal
+            Method: get
+            Auth:
+              ApiKeyRequired: true
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+      Tracing: Active
+
+  GetAccountInternalLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: GetAccountInternalFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GetAccountInternalFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  GetAccountInternalLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref GetAccountInternalLogGroup
+
+  GetAccountFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/get-account.getAccountHandler
+      CodeUri: './dist'
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Description: emails-email-api get account
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AccountTable
+      Environment:
+        Variables:
+          DYNAMODB_ACCOUNTS_TABLE_NAME: !Ref AccountTable
+      Events:
+        ApiKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts/{accountId}
+            Method: get
+            Auth:
+              ApiKeyRequired: true
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}
+            Method: get
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+      Tracing: Active
+
+  GetAccountLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: GetAccountFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GetAccountFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  GetAccountLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref GetAccountLogGroup
+
+  GetAllAccountsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/get-all-accounts.getAllAccountsHandler
+      CodeUri: './dist'
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Description: emails-email-api get all accounts
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AccountTable
+      Environment:
+        Variables:
+          DYNAMODB_ACCOUNTS_TABLE_NAME: !Ref AccountTable
+      Events:
+        ApiKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts
+            Method: get
+            Auth:
+              ApiKeyRequired: true
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+      Tracing: Active
+
+  GetAllAccountsLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: GetAllAccountsFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GetAllAccountsFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  GetAllAccountsLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref GetAllAccountsLogGroup
+
+  PatchAccountFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/patch-account.patchAccountHandler
+      CodeUri: './dist'
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Description: emails-email-api patch account
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AccountTable
+      Environment:
+        Variables:
+          DYNAMODB_ACCOUNTS_TABLE_NAME: !Ref AccountTable
+      Events:
+        ApiKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts/{accountId}
+            Method: patch
+            Auth:
+              ApiKeyRequired: true
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}
+            Method: patch
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+      Tracing: Active
+
+  PatchAccountLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: PatchAccountFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PatchAccountFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  PatchAccountLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref PatchAccountLogGroup
+
+  PutAccountFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/put-account.putAccountHandler
+      CodeUri: './dist'
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Description: emails-email-api put account
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AccountTable
+      Environment:
+        Variables:
+          DYNAMODB_ACCOUNTS_TABLE_NAME: !Ref AccountTable
+      Events:
+        ApiKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts/{accountId}
+            Method: put
+            Auth:
+              ApiKeyRequired: true
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}
+            Method: put
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+      Tracing: Active
+
+  PutAccountLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: PutAccountFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PutAccountFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  PutAccountLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref PutAccountLogGroup
+
+  ## Received
+
+  DeleteReceivedEmailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/received/delete-email.deleteEmailHandler
+      CodeUri: './dist'
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Description: emails-email-api delete received email
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReceivedTable
+      Environment:
+        Variables:
+          DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable
+      Events:
+        ApiKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts/{accountId}/emails/received/{emailId}
+            Method: delete
+            Auth:
+              ApiKeyRequired: true
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}/emails/received/{emailId}
+            Method: delete
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+      Tracing: Active
+
+  DeleteReceivedEmailLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: DeleteReceivedEmailFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${DeleteReceivedEmailFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  DeleteReceivedEmailLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref DeleteReceivedEmailLogGroup
+
+  GetAllReceivedEmailsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/received/get-all-emails.getAllEmailsHandler
+      CodeUri: './dist'
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Description: emails-email-api get all received emails
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReceivedTable
+        - S3ReadPolicy:
+            BucketName: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+      Environment:
+        Variables:
+          DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable
+      Events:
+        ApiKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts/{accountId}/emails/received
+            Method: get
+            Auth:
+              ApiKeyRequired: true
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}/emails/received
+            Method: get
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+      Tracing: Active
+
+  GetAllReceivedEmailsLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: GetAllReceivedEmailsFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GetAllReceivedEmailsFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  GetAllReceivedEmailsLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref GetAllReceivedEmailsLogGroup
+
+  GetReceivedEmailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/received/get-email.getEmailHandler
+      CodeUri: './dist'
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Description: emails-email-api get received email
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReceivedTable
+        - S3ReadPolicy:
+            BucketName: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+      Environment:
+        Variables:
+          DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable
+      Events:
+        ApiKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts/{accountId}/emails/received/{emailId}
+            Method: get
+            Auth:
+              ApiKeyRequired: true
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}/emails/received/{emailId}
+            Method: get
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+      Tracing: Active
+
+  GetReceivedEmailLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: GetReceivedEmailFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GetReceivedEmailFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  GetReceivedEmailLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref GetReceivedEmailLogGroup
+
+  PatchReceivedEmailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/received/patch-email.patchEmailHandler
+      CodeUri: './dist'
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Description: emails-email-api patch received email
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReceivedTable
+      Environment:
+        Variables:
+          DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable
+      Events:
+        ApiKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts/{accountId}/emails/received/{emailId}
+            Method: patch
+            Auth:
+              ApiKeyRequired: true
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}/emails/received/{emailId}
+            Method: patch
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+      Tracing: Active
+
+  PatchReceivedEmailLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: PatchReceivedEmailFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PatchReceivedEmailFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  PatchReceivedEmailLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref PatchReceivedEmailLogGroup
+
+  PutReceivedEmailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/received/put-email.putEmailHandler
+      CodeUri: './dist'
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Description: emails-email-api put received email
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReceivedTable
+      Environment:
+        Variables:
+          DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable
+      Events:
+        ApiKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts/{accountId}/emails/received/{emailId}
+            Method: put
+            Auth:
+              ApiKeyRequired: true
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+      Tracing: Active
+
+  PutReceivedEmailLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: PutReceivedEmailFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PutReceivedEmailFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  PutReceivedEmailLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref PutReceivedEmailLogGroup
+
+  ## Received attachments
+
+  GetReceivedAttachmentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/received/attachments/get-attachment.getAttachmentHandler
+      CodeUri: './dist'
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Description: emails-email-api get received email attachment
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReceivedTable
+        - S3ReadPolicy:
+            BucketName: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+      Environment:
+        Variables:
+          DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable
+      Events:
+        ApiKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts/{accountId}/emails/received/{emailId}/attachments/{attachmentId}
+            Method: get
+            Auth:
+              ApiKeyRequired: true
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}/emails/received/{emailId}/attachments/{attachmentId}
+            Method: get
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+      Tracing: Active
+
+  GetReceivedAttachmentLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: GetReceivedAttachmentFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GetReceivedAttachmentFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  GetReceivedAttachmentLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref GetReceivedAttachmentLogGroup
+
+  ## Received contents
+
+  GetReceivedContentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/received/contents/get-contents.getContentsHandler
+      CodeUri: './dist'
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Description: emails-email-api get received email contents
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReceivedTable
+        - S3ReadPolicy:
+            BucketName: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+      Environment:
+        Variables:
+          DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable
+      Events:
+        ApiKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts/{accountId}/emails/received/{emailId}/contents
+            Method: get
+            Auth:
+              ApiKeyRequired: true
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}/emails/received/{emailId}/contents
+            Method: get
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+      Tracing: Active
+
+  GetReceivedContentsLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: GetReceivedContentsFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GetReceivedContentsFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  GetReceivedContentsLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref GetReceivedContentsLogGroup
+
+  # Database
+
+  AccountTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: Account
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: Account
+          KeyType: HASH
+      TableName: !FindInMap [EnvironmentMap, !Ref Environment, tableAccounts]
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  ReceivedTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: Account
+          AttributeType: S
+        - AttributeName: UUID
+          AttributeType: S
+        - AttributeName: Timestamp
+          AttributeType: N
+      BillingMode: PAY_PER_REQUEST
+      GlobalSecondaryIndexes:
+        - IndexName: TimestampIndex
+          KeySchema:
+            - AttributeName: Account
+              KeyType: HASH
+            - AttributeName: Timestamp
+              KeyType: RANGE
+          Projection:
+            NonKeyAttributes:
+              - UUID
+            ProjectionType: INCLUDE
+      KeySchema:
+        - AttributeName: Account
+          KeyType: HASH
+        - AttributeName: UUID
+          KeyType: RANGE
+      TableName: !FindInMap [EnvironmentMap, !Ref Environment, tableReceived]
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment

@@ -1,0 +1,250 @@
+name: Pipeline
+
+on:
+  push:
+    branches:
+      - 'master'
+      - 'feature**'
+
+env:
+  PIPELINE_USER_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  PIPELINE_USER_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  SAM_TEMPLATE: template.yaml
+  TESTING_STACK_NAME: emails-email-api-test
+  TESTING_PIPELINE_EXECUTION_ROLE: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/emails-pipeline-test
+  TESTING_CLOUDFORMATION_EXECUTION_ROLE: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/emails-cloudformation-test
+  TESTING_ARTIFACTS_BUCKET: emails-lambda-test
+  TESTING_REGION: ${{ secrets.AWS_REGION }}
+  PROD_STACK_NAME: emails-email-api
+  PROD_PIPELINE_EXECUTION_ROLE: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/emails-pipeline
+  PROD_CLOUDFORMATION_EXECUTION_ROLE: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/emails-cloudformation
+  PROD_ARTIFACTS_BUCKET: emails-lambda
+  PROD_REGION: ${{ secrets.AWS_REGION }}
+
+jobs:
+  test:
+    name: Run unit tests
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout latest code
+        uses: actions/checkout@v2
+      - name: Install Node 6
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16.x
+      - name: Install and audit packages
+        run: npm ci && npm audit --audit-level=high
+        env:
+          NODE_ENV: test
+      - name: Run tests
+        run: npm run test
+
+  build-and-deploy-feature:
+    name: Deploy feature branch
+    if: startsWith(github.ref, 'refs/heads/feature')
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout latest code
+        uses: actions/checkout@v2
+      - name: Install Node 16
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16.x
+      - uses: actions/setup-python@v2
+      - uses: aws-actions/setup-sam@v1
+      - name: Build TypeScript into Lambda
+        run: npm run build
+        env:
+          HUSKY: 0
+      - run: sam build --template ${SAM_TEMPLATE} --use-container --container-env-var NODE_ENV=production
+
+      - name: Assume the testing pipeline user role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ env.PIPELINE_USER_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.PIPELINE_USER_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.TESTING_REGION }}
+          role-to-assume: ${{ env.TESTING_PIPELINE_EXECUTION_ROLE }}
+          role-session-name: feature-deployment
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Deploy to feature stack in the testing account
+        shell: bash
+        run: |
+          sam deploy --stack-name ${TESTING_STACK_NAME} \
+            --capabilities CAPABILITY_IAM \
+            --region ${TESTING_REGION} \
+            --s3-bucket ${TESTING_ARTIFACTS_BUCKET} \
+            --s3-prefix emails-email-api-test \
+            --no-fail-on-empty-changeset \
+            --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE} \
+            --parameter-overrides 'Environment=test'
+
+  build-and-package:
+    name: Build and package lambda
+    if: github.ref == 'refs/heads/master'
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout latest code
+        uses: actions/checkout@v2
+      - name: Install Node 16
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16.x
+      - uses: actions/setup-python@v2
+      - uses: aws-actions/setup-sam@v1
+
+      - name: Build resources
+        run: |
+          npm run build
+          sam build --template ${SAM_TEMPLATE} --use-container --container-env-var NODE_ENV=production
+        env:
+          HUSKY: 0
+
+      - name: Assume the testing pipeline user role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ env.PIPELINE_USER_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.PIPELINE_USER_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.TESTING_REGION }}
+          role-to-assume: ${{ env.TESTING_PIPELINE_EXECUTION_ROLE }}
+          role-session-name: testing-packaging
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Upload artifacts to testing artifact buckets
+        run: |
+          sam package \
+            --s3-bucket ${TESTING_ARTIFACTS_BUCKET} \
+            --s3-prefix emails-email-api-test \
+            --region ${TESTING_REGION} \
+            --output-template-file packaged-testing.yaml
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: packaged-testing.yaml
+          path: packaged-testing.yaml
+
+      - name: Assume the prod pipeline user role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ env.PIPELINE_USER_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.PIPELINE_USER_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.PROD_REGION }}
+          role-to-assume: ${{ env.PROD_PIPELINE_EXECUTION_ROLE }}
+          role-session-name: prod-packaging
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Upload artifacts to production artifact buckets
+        run: |
+          sam package \
+            --s3-bucket ${PROD_ARTIFACTS_BUCKET} \
+            --s3-prefix emails-email-api \
+            --region ${PROD_REGION} \
+            --output-template-file packaged-prod.yaml
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: packaged-prod.yaml
+          path: packaged-prod.yaml
+
+  deploy-testing:
+    name: Deploy to test
+    if: github.ref == 'refs/heads/master'
+    needs: [build-and-package]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout latest code
+        uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+      - uses: aws-actions/setup-sam@v1
+      - uses: actions/download-artifact@v2
+        with:
+          name: packaged-testing.yaml
+
+      - name: Assume the testing pipeline user role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ env.PIPELINE_USER_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.PIPELINE_USER_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.TESTING_REGION }}
+          role-to-assume: ${{ env.TESTING_PIPELINE_EXECUTION_ROLE }}
+          role-session-name: testing-deployment
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Deploy to testing account
+        run: |
+          sam deploy --stack-name ${TESTING_STACK_NAME} \
+            --template packaged-testing.yaml \
+            --capabilities CAPABILITY_IAM \
+            --region ${TESTING_REGION} \
+            --s3-bucket ${TESTING_ARTIFACTS_BUCKET} \
+            --s3-prefix emails-email-api-test \
+            --no-fail-on-empty-changeset \
+            --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE} \
+            --parameter-overrides 'Environment=test'
+
+  deploy-prod:
+    name: Deploy to production
+    if: github.ref == 'refs/heads/master'
+    needs: [deploy-testing]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout latest code
+        uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+      - uses: aws-actions/setup-sam@v1
+      - uses: actions/download-artifact@v2
+        with:
+          name: packaged-prod.yaml
+
+      - name: Assume the prod pipeline user role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ env.PIPELINE_USER_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.PIPELINE_USER_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.PROD_REGION }}
+          role-to-assume: ${{ env.PROD_PIPELINE_EXECUTION_ROLE }}
+          role-session-name: prod-deployment
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Deploy to production account
+        run: |
+          sam deploy --stack-name ${PROD_STACK_NAME} \
+            --template packaged-prod.yaml \
+            --capabilities CAPABILITY_IAM \
+            --region ${PROD_REGION} \
+            --s3-bucket ${PROD_ARTIFACTS_BUCKET} \
+            --s3-prefix emails-email-api \
+            --no-fail-on-empty-changeset \
+            --role-arn ${PROD_CLOUDFORMATION_EXECUTION_ROLE}
+
+  bump:
+    name: Bump the version number and tag the commit
+    needs: deploy-prod
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout latest code
+        uses: actions/checkout@v2
+      - name: Install Node 16
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16.x
+      - name: Set git name and email
+        run: |
+          git config --local user.email "dbowland1+bot@gmail.com"
+          git config --local user.name "github-actions[bot]"
+      - name: Bump the minor version
+        run: npm version minor
+      - name: Push tag created by version bump
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}

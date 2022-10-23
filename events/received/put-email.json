@@ -1,0 +1,13 @@
+{
+  "body": "{\"from\":\"another@domain.com\",\"subject\":\"Hello, world\",\"timestamp\":1666560735998,\"to\":[\"account@domain.com\"]}",
+  "pathParameters": {
+    "accountId": "account",
+    "emailId": "7yh8g-7ytguy-98ui8u-5efka-87y87y"
+  },
+  "requestContext": {
+    "http": {
+      "method": "PUT",
+      "path": "/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y"
+    }
+  }
+}
