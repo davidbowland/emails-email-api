@@ -36,13 +36,16 @@ export interface Email {
   viewed: boolean
 }
 
-export interface EmailBatch {
-  accountId: string
-  data: Email
-  id: string
+export interface EmailAddress {
+  html: string
+  text: string
+  value: {
+    address: string
+    name: string
+  }[]
 }
 
-export interface EmailAddress {
+export interface EmailAddressReplyTo {
   display: string
   value: {
     address: string
@@ -51,11 +54,18 @@ export interface EmailAddress {
   }[]
 }
 
+export interface EmailBatch {
+  accountId: string
+  data: Email
+  id: string
+}
+
 export interface EmailHeaders {
   [key: string]: string
 }
 
 export interface EmailContents {
+  attachments?: EmailAttachment[]
   bodyHtml: string
   bodyText: string
   ccAddress?: EmailAddress
@@ -64,7 +74,7 @@ export interface EmailContents {
   id: string
   inReplyTo?: string
   references: string[]
-  replyToAddress: EmailAddress
+  replyToAddress: EmailAddressReplyTo
   subject?: string
   toAddress?: EmailAddress
 }

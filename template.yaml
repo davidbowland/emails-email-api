@@ -20,27 +20,27 @@ Mappings:
       bucket: emails-service-storage
       certificateEdge: adce1a21-90b4-4120-8548-111215e582f0
       certificateRegional: adce1a21-90b4-4120-8548-111215e582f0
-      corsDomain: https://emails.dbowland.com
+      corsDomain: https://email.dbowland.com
       domain: emails-email-api.dbowland.com
       domainInternal: emails-email-api-internal.dbowland.com
       logStreamFunction: log-subscriber
       tableAccounts: emails-email-api-accounts
       tableReceived: emails-email-api-received
-      userPool: us-east-1_sanAGGlxo
-      userPoolClient: 5mujt7f6h9jh6pudk0t8ekngu
+      userPool: us-east-1_Ye69GgTRe
+      userPoolClient: 3cejj3ovkhdcc1g12pan5kef97
       zoneId: Z072422417XWM8PIXXSFA
     test:
       bucket: emails-service-storage-test
       certificateEdge: 6a48cba7-feb9-4de5-8cbf-d383140fcdef
       certificateRegional: 6a48cba7-feb9-4de5-8cbf-d383140fcdef
-      corsDomain: https://emails.bowland.link
+      corsDomain: https://email.bowland.link
       domain: emails-email-api.bowland.link
       domainInternal: emails-email-api-internal.bowland.link
       logStreamFunction: log-subscriber-test
       tableAccounts: emails-email-api-accounts-test
       tableReceived: emails-email-api-received-test
-      userPool: us-east-1_la4pAOXAJ
-      userPoolClient: 2dh7s2ciglvp62pp2doepsjspb
+      userPool: us-east-1_F7D2gaAHZ
+      userPoolClient: 1mu219nb4hc1jp5bgnq1bcpnsb
       zoneId: Z01312547RGU1BYKIJXY
 
 Resources:
@@ -750,9 +750,12 @@ Resources:
       Policies:
         - AWSLambdaBasicExecutionRole
         - DynamoDBCrudPolicy:
+            TableName: !Ref AccountTable
+        - DynamoDBCrudPolicy:
             TableName: !Ref ReceivedTable
       Environment:
         Variables:
+          DYNAMODB_ACCOUNTS_TABLE_NAME: !Ref AccountTable
           DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable
       Events:
         ApiKey:
@@ -814,6 +817,7 @@ Resources:
       Environment:
         Variables:
           DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable
+          EMAIL_BUCKET: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
       Events:
         ApiKey:
           Type: Api
@@ -880,6 +884,7 @@ Resources:
       Environment:
         Variables:
           DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable
+          EMAIL_BUCKET: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
       Events:
         ApiKey:
           Type: Api
@@ -952,7 +957,7 @@ Resources:
       AttributeDefinitions:
         - AttributeName: Account
           AttributeType: S
-        - AttributeName: UUID
+        - AttributeName: MessageID
           AttributeType: S
         - AttributeName: Timestamp
           AttributeType: N
@@ -966,12 +971,12 @@ Resources:
               KeyType: RANGE
           Projection:
             NonKeyAttributes:
-              - UUID
+              - MessageID
             ProjectionType: INCLUDE
       KeySchema:
         - AttributeName: Account
           KeyType: HASH
-        - AttributeName: UUID
+        - AttributeName: MessageID
           KeyType: RANGE
       TableName: !FindInMap [EnvironmentMap, !Ref Environment, tableReceived]
       Tags:

@@ -73,7 +73,7 @@ export const deleteReceivedById = (account: string, id: string): Promise<DynamoD
         Account: {
           S: `${account}`,
         },
-        UUID: {
+        MessageID: {
           S: `${id}`,
         },
       },
@@ -88,7 +88,7 @@ export const getReceivedById = (account: string, id: string): Promise<Email> =>
         Account: {
           S: `${account}`,
         },
-        UUID: {
+        MessageID: {
           S: `${id}`,
         },
       },
@@ -102,7 +102,7 @@ const getReceivedFromScan = (response: DynamoDB.Types.ScanOutput): EmailBatch[] 
   response.Items?.reduce(
     (result, item) => [
       ...result,
-      { accountId: item.Account.S as string, data: JSON.parse(item.Data.S as string), id: item.UUID.S as string },
+      { accountId: item.Account.S as string, data: JSON.parse(item.Data.S as string), id: item.MessageID.S as string },
     ],
     [] as EmailBatch[]
   ) as EmailBatch[]
@@ -110,13 +110,14 @@ const getReceivedFromScan = (response: DynamoDB.Types.ScanOutput): EmailBatch[] 
 export const getReceived = (account: string): Promise<EmailBatch[]> =>
   dynamodb
     .query({
+      ExpressionAttributeNames: { '#d': 'Data' },
       ExpressionAttributeValues: {
         ':v1': {
           S: `${account}`,
         },
       },
       KeyConditionExpression: 'Account = :v1',
-      ProjectionExpression: 'UUID,Data',
+      ProjectionExpression: 'Account,MessageID,#d',
       TableName: dynamodbReceivedTableName,
     })
     .promise()
@@ -132,7 +133,7 @@ export const setReceivedById = (account: string, id: string, data: Email): Promi
         Data: {
           S: JSON.stringify(data),
         },
-        UUID: {
+        MessageID: {
           S: `${id}`,
         },
       },

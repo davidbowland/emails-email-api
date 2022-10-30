@@ -1,7 +1,7 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../types'
+import { log, logError } from '../../utils/logging'
 import { extractUsernameFromEvent } from '../../utils/events'
 import { getReceivedById } from '../../services/dynamodb'
-import { log } from '../../utils/logging'
 import status from '../../utils/status'
 
 export const getEmailHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
@@ -20,6 +20,7 @@ export const getEmailHandler = async (event: APIGatewayProxyEventV2): Promise<AP
       return status.NOT_FOUND
     }
   } catch (error) {
+    logError(error)
     return status.INTERNAL_SERVER_ERROR
   }
 }

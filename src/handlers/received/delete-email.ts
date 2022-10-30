@@ -1,7 +1,7 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../types'
 import { deleteReceivedById, getReceivedById } from '../../services/dynamodb'
+import { log, logError } from '../../utils/logging'
 import { extractUsernameFromEvent } from '../../utils/events'
-import { log } from '../../utils/logging'
 import status from '../../utils/status'
 
 const deleteEmail = async (accountId: string, emailId: string) => {
@@ -11,6 +11,7 @@ const deleteEmail = async (accountId: string, emailId: string) => {
       await deleteReceivedById(accountId, emailId)
       return { ...status.OK, body: JSON.stringify({ ...data, accountId, id: emailId }) }
     } catch (error) {
+      logError(error)
       return status.INTERNAL_SERVER_ERROR
     }
   } catch (error) {
@@ -29,6 +30,7 @@ export const deleteEmailHandler = async (event: APIGatewayProxyEventV2): Promise
 
     return await deleteEmail(accountId, emailId)
   } catch (error) {
+    logError(error)
     return status.INTERNAL_SERVER_ERROR
   }
 }
