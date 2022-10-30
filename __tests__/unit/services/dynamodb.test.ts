@@ -115,7 +115,7 @@ describe('dynamodb', () => {
             Account: {
               S: `${accountId}`,
             },
-            UUID: {
+            MessageID: {
               S: `${emailId}`,
             },
           },
@@ -136,7 +136,7 @@ describe('dynamodb', () => {
             Account: {
               S: `${accountId}`,
             },
-            UUID: {
+            MessageID: {
               S: `${emailId}`,
             },
           },
@@ -153,7 +153,9 @@ describe('dynamodb', () => {
     describe('getReceived', () => {
       beforeAll(() => {
         mockQueryItem.mockResolvedValue({
-          Items: [{ Account: { S: `${accountId}` }, Data: { S: JSON.stringify(email) }, UUID: { S: `${emailId}` } }],
+          Items: [
+            { Account: { S: `${accountId}` }, Data: { S: JSON.stringify(email) }, MessageID: { S: `${emailId}` } },
+          ],
         })
       })
 
@@ -192,7 +194,7 @@ describe('dynamodb', () => {
             Data: {
               S: JSON.stringify(email),
             },
-            UUID: {
+            MessageID: {
               S: `${emailId}`,
             },
           },

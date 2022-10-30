@@ -23,9 +23,9 @@ describe('get-attachment', () => {
     mocked(s3).getS3Object.mockResolvedValue({
       body: Buffer.from('fnord'),
       metadata: {
-        'x-amz-meta-contenttype': 'application/pdf',
-        'x-amz-meta-filename': 'fnord.pdf',
-        'x-amz-meta-size': '141119',
+        contenttype: 'application/pdf',
+        filename: 'fnord.pdf',
+        size: '141119',
       },
     })
   })

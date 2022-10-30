@@ -2,8 +2,8 @@ import { mocked } from 'jest-mock'
 
 import * as dynamodb from '@services/dynamodb'
 import * as events from '@utils/events'
+import { account, accountId, email, emailId } from '../../__mocks__'
 import { APIGatewayProxyEventV2 } from '@types'
-import { email } from '../../__mocks__'
 import eventJson from '@events/received/put-email.json'
 import { putEmailHandler } from '@handlers/received/put-email'
 import status from '@utils/status'
@@ -17,6 +17,7 @@ describe('put-email', () => {
 
   beforeAll(() => {
     mocked(dynamodb).setReceivedById.mockResolvedValue(undefined)
+    mocked(dynamodb).getAccountById.mockResolvedValue(account)
     mocked(events).extractEmailFromEvent.mockReturnValue(email)
   })
 
@@ -29,7 +30,27 @@ describe('put-email', () => {
       expect(result).toEqual(expect.objectContaining(status.BAD_REQUEST))
     })
 
+    test('expect setReceivedById called with email', async () => {
+      await putEmailHandler(event)
+      expect(mocked(dynamodb).setReceivedById).toHaveBeenCalledWith(accountId, emailId, email)
+    })
+
     test('expect INTERNAL_SERVER_ERROR on setReceivedById reject', async () => {
+      mocked(dynamodb).setReceivedById.mockRejectedValueOnce(undefined)
+      const result = await putEmailHandler(event)
+      expect(result).toEqual(expect.objectContaining(status.INTERNAL_SERVER_ERROR))
+    })
+
+    test('expect setReceivedById called a second time when getAccountById rejects', async () => {
+      mocked(dynamodb).getAccountById.mockRejectedValueOnce(undefined)
+      await putEmailHandler(event)
+      expect(mocked(dynamodb).setReceivedById).toHaveBeenCalledWith('admin', emailId, email)
+      expect(mocked(dynamodb).setReceivedById).toHaveBeenCalledTimes(2)
+    })
+
+    test('expect INTERNAL_SERVER_ERROR when second setReceivedById rejects', async () => {
+      mocked(dynamodb).setReceivedById.mockResolvedValueOnce(undefined)
+      mocked(dynamodb).getAccountById.mockRejectedValueOnce(undefined)
       mocked(dynamodb).setReceivedById.mockRejectedValueOnce(undefined)
       const result = await putEmailHandler(event)
       expect(result).toEqual(expect.objectContaining(status.INTERNAL_SERVER_ERROR))

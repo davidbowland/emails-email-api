@@ -58,19 +58,38 @@ describe('get-contents', () => {
       expect(result).toEqual({
         ...status.OK,
         body: JSON.stringify({
+          attachments: [
+            { filename: 'alexa-screenshot.png', id: 'f_kx2qxtrl0', size: 25277, type: 'attachment' },
+            { filename: 'unknown', id: 'i87trdcvbnmnbfdfyujigf', size: 45678, type: 'attachment' },
+          ],
           bodyHtml:
             '<a href="http://www.gutenberg.org/files/8164/8164-h/8164-h.htm">http://www.gutenberg.org/files/8164/8164-h/8164-h.htm</a>\n',
           bodyText: 'http://www.gutenberg.org/files/8164/8164-h/8164-h.htm\n',
           fromAddress: {
-            display: 'Person A <a@person.email>',
-            value: [{ address: 'a@person.email', name: 'Person A' }],
+            html: '<span class="mp_address_group"><span class="mp_address_name">Another Person</span> &lt;<a href="mailto:another@domain.com" class="mp_address_email">another@domain.com</a>&gt;</span>',
+            text: 'Another Person <another@domain.com>',
+            value: [
+              {
+                address: 'another@domain.com',
+                name: 'Another Person',
+              },
+            ],
           },
           headers: {},
           id: '7yh8g-7ytguy-98ui8u-5efka-87y87y',
           references: [],
           replyToAddress: { display: '', value: [{ address: '', name: '' }] },
           subject: 'P G Wodehouse',
-          toAddress: { display: 'Person B <b@person.email>', value: [{ address: 'b@person.email', name: 'Person B' }] },
+          toAddress: {
+            html: '<span class="mp_address_group"><a href="mailto:account@domain.com" class="mp_address_email">account@domain.com</a></span>',
+            text: 'account@domain.com',
+            value: [
+              {
+                address: 'account@domain.com',
+                name: '',
+              },
+            ],
+          },
         }),
       })
     })

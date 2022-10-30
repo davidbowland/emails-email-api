@@ -1,6 +1,17 @@
-import { EmailAddress, EmailContents, EmailHeaders, ParsedMail } from '../types'
+import { EmailAddress, EmailAddressReplyTo, EmailContents, EmailHeaders, ParsedMail } from '../types'
 
 const emptyAddress: EmailAddress = {
+  html: '',
+  text: '',
+  value: [
+    {
+      address: '',
+      name: '',
+    },
+  ],
+}
+
+const emptyAddressReplyTo: EmailAddressReplyTo = {
   display: '',
   value: [
     {
@@ -11,6 +22,12 @@ const emptyAddress: EmailAddress = {
 }
 
 export const convertParsedContentsToEmail = (emailId: string, parsedMail: ParsedMail): EmailContents => ({
+  attachments: parsedMail.attachments?.map((attachment) => ({
+    filename: attachment.filename ?? 'unknown',
+    id: attachment.cid ?? attachment.checksum,
+    size: parseInt(`${attachment.size}`.replace(/\D+/g, ''), 10),
+    type: attachment.type,
+  })),
   bodyHtml: (parsedMail.html ?? parsedMail.textAsHtml) || '',
   bodyText: parsedMail.text ?? '',
   ccAddress: parsedMail.cc as unknown as EmailAddress,
@@ -19,7 +36,7 @@ export const convertParsedContentsToEmail = (emailId: string, parsedMail: Parsed
   id: parsedMail.messageId ?? emailId,
   inReplyTo: parsedMail.inReplyTo,
   references: typeof parsedMail.references === 'string' ? [parsedMail.references] : parsedMail.references ?? [],
-  replyToAddress: (parsedMail.replyTo ?? emptyAddress) as EmailAddress,
+  replyToAddress: (parsedMail.replyTo ?? emptyAddressReplyTo) as EmailAddressReplyTo,
   subject: parsedMail.subject,
   toAddress: parsedMail.to as unknown as EmailAddress,
 })

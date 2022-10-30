@@ -38,10 +38,44 @@ export const jsonPatchOperations: PatchOperation[] = [
 ]
 
 export const parsedContents = {
+  attachments: [
+    {
+      checksum: '335a8335831f08e391d3a1d38a3167c9',
+      cid: 'f_kx2qxtrl0',
+      content: { data: [130], type: 'Buffer' },
+      contentDisposition: 'attachment',
+      contentId: '<f_kx2qxtrl0>',
+      contentType: 'image/png',
+      filename: 'alexa-screenshot.png',
+      headers: {},
+      partId: '2',
+      release: null,
+      size: 25277,
+      type: 'attachment',
+    },
+    {
+      checksum: 'i87trdcvbnmnbfdfyujigf',
+      content: { data: [130], type: 'Buffer' },
+      contentDisposition: 'attachment',
+      contentId: '<f_kx2qxtrl0>',
+      contentType: 'image/png',
+      headers: {},
+      partId: '2',
+      release: null,
+      size: 45678,
+      type: 'attachment',
+    },
+  ],
   date: '2018-08-06T00:58:58.000Z',
   from: {
-    display: 'Person A <a@person.email>',
-    value: [{ address: 'a@person.email', name: 'Person A' }],
+    html: '<span class="mp_address_group"><span class="mp_address_name">Another Person</span> &lt;<a href="mailto:another@domain.com" class="mp_address_email">another@domain.com</a>&gt;</span>',
+    text: 'Another Person <another@domain.com>',
+    value: [
+      {
+        address: 'another@domain.com',
+        name: 'Another Person',
+      },
+    ],
   },
   headerLines: [
     { key: 'mime-version', line: 'MIME-Version: 1.0' },
@@ -63,7 +97,13 @@ export const parsedContents = {
   textAsHtml:
     '<p><a href="http://www.gutenberg.org/files/8164/8164-h/8164-h.htm">http://www.gutenberg.org/files/8164/8164-h/8164-h.htm</a></p>',
   to: {
-    display: 'Person B <b@person.email>',
-    value: [{ address: 'b@person.email', name: 'Person B' }],
+    html: '<span class="mp_address_group"><a href="mailto:account@domain.com" class="mp_address_email">account@domain.com</a></span>',
+    text: 'account@domain.com',
+    value: [
+      {
+        address: 'account@domain.com',
+        name: '',
+      },
+    ],
   },
 } as unknown as ParsedMail
