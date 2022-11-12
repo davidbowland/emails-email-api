@@ -55,6 +55,7 @@ describe('get-contents', () => {
 
     test('expect OK when index exists', async () => {
       const result = await getContentsHandler(event)
+      expect(mocked(s3.getS3Object)).toHaveBeenCalledWith('received/account/7yh8g-7ytguy-98ui8u-5efka-87y87y')
       expect(result).toEqual({
         ...status.OK,
         body: JSON.stringify({

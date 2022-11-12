@@ -26,6 +26,7 @@ Mappings:
       logStreamFunction: log-subscriber
       tableAccounts: emails-email-api-accounts
       tableReceived: emails-email-api-received
+      tableSent: emails-email-api-sent
       userPool: us-east-1_Ye69GgTRe
       userPoolClient: 3cejj3ovkhdcc1g12pan5kef97
       zoneId: Z072422417XWM8PIXXSFA
@@ -39,6 +40,7 @@ Mappings:
       logStreamFunction: log-subscriber-test
       tableAccounts: emails-email-api-accounts-test
       tableReceived: emails-email-api-received-test
+      tableSent: emails-email-api-sent-test
       userPool: us-east-1_F7D2gaAHZ
       userPoolClient: 1mu219nb4hc1jp5bgnq1bcpnsb
       zoneId: Z01312547RGU1BYKIJXY
@@ -930,6 +932,8 @@ Resources:
       FilterPattern: '[timestamp, uuid, level="ERROR", message]'
       LogGroupName: !Ref GetReceivedContentsLogGroup
 
+  ## Sent
+
   # Database
 
   AccountTable:
@@ -979,6 +983,42 @@ Resources:
         - AttributeName: MessageID
           KeyType: RANGE
       TableName: !FindInMap [EnvironmentMap, !Ref Environment, tableReceived]
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  SentTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: Account
+          AttributeType: S
+        - AttributeName: MessageID
+          AttributeType: S
+        - AttributeName: Timestamp
+          AttributeType: N
+      BillingMode: PAY_PER_REQUEST
+      GlobalSecondaryIndexes:
+        - IndexName: TimestampIndex
+          KeySchema:
+            - AttributeName: Account
+              KeyType: HASH
+            - AttributeName: Timestamp
+              KeyType: RANGE
+          Projection:
+            NonKeyAttributes:
+              - MessageID
+            ProjectionType: INCLUDE
+      KeySchema:
+        - AttributeName: Account
+          KeyType: HASH
+        - AttributeName: MessageID
+          KeyType: RANGE
+      TableName: !FindInMap [EnvironmentMap, !Ref Environment, tableSent]
       Tags:
         - Key: 'created-by'
           Value: 'emails-email-api'

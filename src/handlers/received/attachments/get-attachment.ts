@@ -21,8 +21,7 @@ export const getAttachmentHandler = async (event: APIGatewayProxyEventV2): Promi
       return status.NOT_FOUND
     }
 
-    const { body, metadata } = await getS3Object(`inbound/${emailId}/${attachmentId}`)
-    console.log({ metadata })
+    const { body, metadata } = await getS3Object(`received/${accountId}/${emailId}/${attachmentId}`)
     return {
       ...status.OK,
       body: body.toString('base64'),

@@ -23,7 +23,7 @@ export const getContentsHandler = async (event: APIGatewayProxyEventV2): Promise
       return status.NOT_FOUND
     }
 
-    const { body } = await getS3Object(`inbound/${emailId}`)
+    const { body } = await getS3Object(`received/${accountId}/${emailId}`)
     const parsedMail = await simpleParser(body)
     return {
       ...status.OK,
