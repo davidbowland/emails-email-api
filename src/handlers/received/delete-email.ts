@@ -1,6 +1,7 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../types'
 import { deleteReceivedById, getReceivedById } from '../../services/dynamodb'
 import { log, logError } from '../../utils/logging'
+import { deleteS3Object } from '../../services/s3'
 import { extractUsernameFromEvent } from '../../utils/events'
 import status from '../../utils/status'
 
@@ -9,6 +10,19 @@ const deleteEmail = async (accountId: string, emailId: string) => {
     const data = await getReceivedById(accountId, emailId)
     try {
       await deleteReceivedById(accountId, emailId)
+      try {
+        await Promise.all(
+          data.attachments?.map((attachment) => deleteS3Object(`received/${accountId}/${emailId}/${attachment.id}`)) ??
+            []
+        )
+      } catch (error) {
+        log('Error deleting attachments', { accountId, emailId, error })
+      }
+      try {
+        await deleteS3Object(`received/${accountId}/${emailId}`)
+      } catch (error) {
+        log('Error deleting email', { accountId, emailId, error })
+      }
       return { ...status.OK, body: JSON.stringify({ ...data, accountId, id: emailId }) }
     } catch (error) {
       logError(error)

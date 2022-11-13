@@ -59,7 +59,7 @@
     "**/*.{js,jsx,ts,tsx}": [
       "prettier --write --ignore-unknown",
       "eslint --resolve-plugins-relative-to . --fix",
-      "jest --colors --findRelatedTests --coverageThreshold '{}'"
+      "jest --colors --findRelatedTests --coverageThreshold '{}' --passWithNoTests"
     ],
     "**/*": [
       "prettier --write --ignore-unknown"

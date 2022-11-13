@@ -165,6 +165,14 @@ describe('dynamodb', () => {
           {
             accountId: 'account',
             data: {
+              attachments: [
+                {
+                  filename: 'fnord.jpg',
+                  id: '9ijh-6tfg-dfsf3-sdfio-johac',
+                  size: 1976642,
+                  type: 'image/jpeg',
+                },
+              ],
               from: 'another@domain.com',
               subject: 'Hello, world',
               timestamp: 1666560735998,

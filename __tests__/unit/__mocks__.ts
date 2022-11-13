@@ -1,4 +1,4 @@
-import { Account, AccountBatch, Email, EmailBatch, ParsedMail, PatchOperation } from '@types'
+import { Account, AccountBatch, Email, EmailAttachment, EmailBatch, ParsedMail, PatchOperation } from '@types'
 
 export const accountId = 'account'
 
@@ -15,9 +15,17 @@ export const accountBatch: AccountBatch[] = [
 
 export const attachmentId = '9ijh-6tfg-dfsf3-sdfio-johac'
 
+export const attachment: EmailAttachment = {
+  filename: 'fnord.jpg',
+  id: attachmentId,
+  size: 1976642,
+  type: 'image/jpeg',
+}
+
 export const emailId = '7yh8g-7ytguy-98ui8u-5efka-87y87y'
 
 export const email: Email = {
+  attachments: [attachment],
   from: 'another@domain.com',
   subject: 'Hello, world',
   timestamp: 1666560735998,

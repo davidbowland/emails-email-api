@@ -6,6 +6,9 @@ import { xrayCapture } from '../utils/logging'
 
 const s3 = xrayCapture(new S3({ apiVersion: '2006-03-01' }))
 
+export const deleteS3Object = (key: string): Promise<S3.DeleteObjectOutput> =>
+  s3.deleteObject({ Bucket: emailBucket, Key: key }).promise()
+
 export const getS3Object = (key: string): Promise<AttachmentContents> =>
   s3
     .getObject({ Bucket: emailBucket, Key: key })
