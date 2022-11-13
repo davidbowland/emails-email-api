@@ -1,11 +1,13 @@
-import { deleteS3Object, getS3Object, putS3Object } from '@services/s3'
+import { copyS3Object, deleteS3Object, getS3Object, putS3Object } from '@services/s3'
 import { emailBucket } from '@config'
 
+const mockCopyObject = jest.fn()
 const mockDeleteObject = jest.fn()
 const mockGetObject = jest.fn()
 const mockPutObject = jest.fn()
 jest.mock('aws-sdk', () => ({
   S3: jest.fn(() => ({
+    copyObject: (...args) => ({ promise: () => mockCopyObject(...args) }),
     deleteObject: (...args) => ({ promise: () => mockDeleteObject(...args) }),
     getObject: (...args) => ({ promise: () => mockGetObject(...args) }),
     putObject: (...args) => ({ promise: () => mockPutObject(...args) }),
@@ -17,6 +19,29 @@ jest.mock('@utils/logging', () => ({
 
 describe('S3', () => {
   const key = 'prefix/key'
+
+  describe('copyS3Object', () => {
+    const fromKey = 'prefix/another-key'
+
+    beforeAll(() => {
+      mockCopyObject.mockResolvedValue({})
+    })
+
+    test('expect keys passed to S3 as object', async () => {
+      await copyS3Object(fromKey, key)
+      expect(mockCopyObject).toHaveBeenCalledWith({
+        Bucket: emailBucket,
+        CopySource: `/${emailBucket}/${fromKey}`,
+        Key: key,
+      })
+    })
+
+    test('expect reject when promise rejects', async () => {
+      const rejectReason = 'unable to foo the bar'
+      mockCopyObject.mockRejectedValueOnce(rejectReason)
+      await expect(copyS3Object(fromKey, key)).rejects.toEqual(rejectReason)
+    })
+  })
 
   describe('deleteS3Object', () => {
     test('expect key passed to mock', async () => {

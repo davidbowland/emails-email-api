@@ -1,8 +1,8 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../../types'
-import { log, logError } from '../../../utils/logging'
 import { extractUsernameFromEvent } from '../../../utils/events'
 import { getReceivedById } from '../../../services/dynamodb'
 import { getS3Object } from '../../../services/s3'
+import { log } from '../../../utils/logging'
 import status from '../../../utils/status'
 
 export const getAttachmentHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
@@ -17,23 +17,27 @@ export const getAttachmentHandler = async (event: APIGatewayProxyEventV2): Promi
 
     try {
       await getReceivedById(accountId, emailId)
+      const { body, metadata } = await getS3Object(`received/${accountId}/${emailId}/${attachmentId}`)
+      try {
+        return {
+          ...status.OK,
+          body: body.toString('base64'),
+          headers: {
+            'Content-Disposition': `attachment; filename="${metadata['filename'].replace(/[^\w\\.]+/g, '_')}"`,
+            'Content-Length': metadata['size'].replace(/\D+/g, ''),
+            'Content-Type': metadata['contenttype'].replace(/[^\w\\.\\/-]+/g, ''),
+          },
+          isBase64Encoded: true,
+        }
+      } catch (error) {
+        log(error)
+        return status.INTERNAL_SERVER_ERROR
+      }
     } catch (error) {
       return status.NOT_FOUND
     }
-
-    const { body, metadata } = await getS3Object(`received/${accountId}/${emailId}/${attachmentId}`)
-    return {
-      ...status.OK,
-      body: body.toString('base64'),
-      headers: {
-        'Content-Disposition': `attachment; filename="${metadata['filename'].replace(/[^\w\\.]+/g, '_')}"`,
-        'Content-Length': metadata['size'].replace(/\D+/g, ''),
-        'Content-Type': metadata['contenttype'].replace(/[^\w\\.\\/-]+/g, ''),
-      },
-      isBase64Encoded: true,
-    }
   } catch (error) {
-    logError(error)
+    log(error)
     return status.INTERNAL_SERVER_ERROR
   }
 }

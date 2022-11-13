@@ -14,7 +14,7 @@ describe('parser', () => {
         bodyHtml:
           '<a href="http://www.gutenberg.org/files/8164/8164-h/8164-h.htm">http://www.gutenberg.org/files/8164/8164-h/8164-h.htm</a>\n',
         bodyText: 'http://www.gutenberg.org/files/8164/8164-h/8164-h.htm\n',
-        ccAddress: undefined,
+        ccAddress: ['cc@domain.com'],
         fromAddress: {
           html: '<span class="mp_address_group"><span class="mp_address_name">Another Person</span> &lt;<a href="mailto:another@domain.com" class="mp_address_email">another@domain.com</a>&gt;</span>',
           text: 'Another Person <another@domain.com>',

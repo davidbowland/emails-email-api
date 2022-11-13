@@ -1,6 +1,6 @@
-import { EmailAddress, EmailAddressReplyTo, EmailContents, EmailHeaders, ParsedMail } from '../types'
+import { EmailAddressParsed, EmailAddressReplyTo, EmailContents, EmailHeaders, ParsedMail } from '../types'
 
-const emptyAddress: EmailAddress = {
+const emptyAddress: EmailAddressParsed = {
   html: '',
   text: '',
   value: [
@@ -30,13 +30,13 @@ export const convertParsedContentsToEmail = (emailId: string, parsedMail: Parsed
   })),
   bodyHtml: (parsedMail.html ?? parsedMail.textAsHtml) || '',
   bodyText: parsedMail.text ?? '',
-  ccAddress: parsedMail.cc as unknown as EmailAddress,
-  fromAddress: (parsedMail.from ?? emptyAddress) as EmailAddress,
+  ccAddress: parsedMail.cc as unknown as EmailAddressParsed,
+  fromAddress: (parsedMail.from ?? emptyAddress) as EmailAddressParsed,
   headers: parsedMail.headers as unknown as EmailHeaders,
   id: parsedMail.messageId ?? emailId,
   inReplyTo: parsedMail.inReplyTo,
   references: typeof parsedMail.references === 'string' ? [parsedMail.references] : parsedMail.references ?? [],
   replyToAddress: (parsedMail.replyTo ?? emptyAddressReplyTo) as EmailAddressReplyTo,
   subject: parsedMail.subject,
-  toAddress: parsedMail.to as unknown as EmailAddress,
+  toAddress: parsedMail.to as unknown as EmailAddressParsed,
 })

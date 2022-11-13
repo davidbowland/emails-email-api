@@ -1,11 +1,18 @@
 // API
 
 process.env.API_URL = 'https://emails-email-api.bowland.link/v1/emails'
+process.env.QUEUE_API_KEY = 'queue-api-key'
+process.env.QUEUE_API_URL = 'https://queue.api'
 
 // DynamoDB
 
 process.env.DYNAMODB_ACCOUNTS_TABLE_NAME = 'accounts-table'
 process.env.DYNAMODB_RECEIVED_TABLE_NAME = 'received-table'
+process.env.DYNAMODB_SENT_TABLE_NAME = 'sent-table'
+
+// Email
+
+process.env.EMAIL_DOMAIN = 'bowland.link'
 
 // S3
 

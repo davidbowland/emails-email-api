@@ -1,7 +1,7 @@
 import { applyPatch } from 'fast-json-patch'
 
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2, Account, PatchOperation } from '../types'
-import { extractJsonPatchFromEvent, extractUsernameFromEvent } from '../utils/events'
+import { extractJsonPatchFromEvent, extractUsernameFromEvent, formatAccount } from '../utils/events'
 import { getAccountById, setAccountById } from '../services/dynamodb'
 import { log, logError } from '../utils/logging'
 import { mutateObjectOnJsonPatch, throwOnInvalidJsonPatch } from '../config'
@@ -34,7 +34,8 @@ const patchById = async (
   try {
     const account = await getAccountById(accountId)
     try {
-      return await applyJsonPatch(account, accountId, patchOperations)
+      const formattedAccount = formatAccount(account)
+      return await applyJsonPatch(formattedAccount, accountId, patchOperations)
     } catch (error: any) {
       return { ...status.BAD_REQUEST, body: JSON.stringify({ message: error.message }) }
     }
@@ -52,7 +53,7 @@ export const patchAccountHandler = async (event: APIGatewayProxyEventV2): Promis
     }
 
     const patchOperations = extractJsonPatchFromEvent(event)
-    if (!patchOperations.every((value) => value.path === '/forwardTargets')) {
+    if (!patchOperations.every((value) => value.path === '/forwardTargets' || value.path === '/name')) {
       return status.FORBIDDEN
     }
     const result = await patchById(accountId, patchOperations)

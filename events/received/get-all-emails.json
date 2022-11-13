@@ -8,7 +8,7 @@
   "requestContext": {
     "http": {
       "method": "GET",
-      "path": "/v1/accounts/account/emails/received"
+      "path": "/v1/accounts/account/emails/sent"
     }
   }
 }

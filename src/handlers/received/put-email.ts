@@ -1,7 +1,7 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../types'
-import { getAccountById, setReceivedById } from '../../services/dynamodb'
 import { log, logError } from '../../utils/logging'
 import { extractEmailFromEvent } from '../../utils/events'
+import { setReceivedById } from '../../services/dynamodb'
 import status from '../../utils/status'
 
 export const putEmailHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
@@ -12,11 +12,6 @@ export const putEmailHandler = async (event: APIGatewayProxyEventV2): Promise<AP
     const email = extractEmailFromEvent(event)
     try {
       await setReceivedById(accountId, emailId, email)
-      try {
-        await getAccountById(accountId)
-      } catch (error) {
-        await setReceivedById('admin', emailId, email)
-      }
       return { ...status.OK, body: JSON.stringify(email) }
     } catch (error) {
       logError(error)

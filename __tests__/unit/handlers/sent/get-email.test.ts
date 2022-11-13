@@ -4,8 +4,8 @@ import * as dynamodb from '@services/dynamodb'
 import * as events from '@utils/events'
 import { accountId, email, emailId } from '../../__mocks__'
 import { APIGatewayProxyEventV2 } from '@types'
-import eventJson from '@events/received/get-email.json'
-import { getEmailHandler } from '@handlers/received/get-email'
+import eventJson from '@events/sent/get-email.json'
+import { getEmailHandler } from '@handlers/sent/get-email'
 import status from '@utils/status'
 
 jest.mock('@services/dynamodb')
@@ -16,7 +16,7 @@ describe('get-email', () => {
   const event = eventJson as unknown as APIGatewayProxyEventV2
 
   beforeAll(() => {
-    mocked(dynamodb).getReceivedById.mockResolvedValue(email)
+    mocked(dynamodb).getSentById.mockResolvedValue(email)
     mocked(events).extractUsernameFromEvent.mockReturnValue(accountId)
   })
 
@@ -36,9 +36,9 @@ describe('get-email', () => {
     })
 
     test('expect NOT_FOUND on getReceivedById reject', async () => {
-      mocked(dynamodb).getReceivedById.mockRejectedValueOnce(undefined)
+      mocked(dynamodb).getSentById.mockRejectedValueOnce(undefined)
       const result = await getEmailHandler(event)
-      expect(result).toEqual(status.NOT_FOUND)
+      expect(result).toEqual(expect.objectContaining(status.NOT_FOUND))
     })
 
     test('expect OK when index exists', async () => {

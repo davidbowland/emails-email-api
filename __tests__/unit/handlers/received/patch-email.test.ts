@@ -56,13 +56,13 @@ describe('patch-email', () => {
     test('expect NOT_FOUND on getReceivedById reject', async () => {
       mocked(dynamodb).getReceivedById.mockRejectedValueOnce(undefined)
       const result = await patchEmailHandler(event)
-      expect(result).toEqual(expect.objectContaining(status.NOT_FOUND))
+      expect(result).toEqual(status.NOT_FOUND)
     })
 
     test('expect INTERNAL_SERVER_ERROR on setReceivedById reject', async () => {
       mocked(dynamodb).setReceivedById.mockRejectedValueOnce(undefined)
       const result = await patchEmailHandler(event)
-      expect(result).toEqual(expect.objectContaining(status.INTERNAL_SERVER_ERROR))
+      expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
 
     test('expect setReceivedById called with updated object', async () => {

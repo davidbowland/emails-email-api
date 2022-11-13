@@ -1,9 +1,20 @@
-import { Account, AccountBatch, Email, EmailAttachment, EmailBatch, ParsedMail, PatchOperation } from '@types'
+import {
+  Account,
+  AccountBatch,
+  Email,
+  EmailAttachment,
+  EmailBatch,
+  EmailContents,
+  EmailOutbound,
+  ParsedMail,
+  PatchOperation,
+} from '@types'
 
 export const accountId = 'account'
 
 export const account: Account = {
   forwardTargets: ['any@domain.com'],
+  name: 'Any',
 }
 
 export const accountBatch: AccountBatch[] = [
@@ -41,9 +52,72 @@ export const emailBatch: EmailBatch[] = [
   },
 ]
 
+export const emailContents: EmailContents = {
+  bodyHtml: '<p>Lorem ipsum</p>',
+  bodyText: 'Lorem ipsum',
+  ccAddress: {
+    html: '',
+    text: '',
+    value: [
+      {
+        address: 'cc@domain.com',
+        name: 'CC',
+      },
+    ],
+  },
+  fromAddress: {
+    html: '',
+    text: '',
+    value: [
+      {
+        address: 'account@domain.com',
+        name: 'Any',
+      },
+    ],
+  },
+  headers: undefined,
+  id: '7yh8g-7ytguy-98ui8u-5efka-87y87y',
+  inReplyTo: '765rf-76trf-90oij-edfvb-nbfa2',
+  references: ['765rf-76trf-90oij-edfvb-nbfa2', '5tyha-0oigk-mnfdb-dfgsh-jhgfa'],
+  replyToAddress: {
+    display: '',
+    value: [
+      {
+        address: 'account@domain.com',
+        name: 'Any',
+      },
+    ],
+  },
+  subject: 'Hello, world!',
+  toAddress: {
+    html: '',
+    text: '',
+    value: [
+      {
+        address: 'another@domain.com',
+        name: 'Someone else',
+      },
+    ],
+  },
+}
+
 export const jsonPatchOperations: PatchOperation[] = [
   { op: 'replace', path: '/forwardTargets', value: ['another@domain.com'] },
 ]
+
+export const outboundEmail: EmailOutbound = {
+  bcc: [{ address: 'bcc@domain.com', name: 'BCC' }],
+  cc: [{ address: 'cc@domain.com', name: 'CC' }],
+  from: { address: 'account@domain.com', name: 'Any' },
+  html: '<p>Lorem ipsum</p>',
+  inReplyTo: '765rf-76trf-90oij-edfvb-nbfa2',
+  references: ['765rf-76trf-90oij-edfvb-nbfa2', '5tyha-0oigk-mnfdb-dfgsh-jhgfa'],
+  replyTo: { address: 'account@domain.com', name: 'Any' },
+  sender: { address: 'account@domain.com', name: 'Any' },
+  subject: 'Hello, world!',
+  text: 'Lorem ipsum',
+  to: [{ address: 'another@domain.com', name: 'Someone else' }],
+}
 
 export const parsedContents = {
   attachments: [
@@ -74,6 +148,7 @@ export const parsedContents = {
       type: 'attachment',
     },
   ],
+  cc: ['cc@domain.com'],
   date: '2018-08-06T00:58:58.000Z',
   from: {
     html: '<span class="mp_address_group"><span class="mp_address_name">Another Person</span> &lt;<a href="mailto:another@domain.com" class="mp_address_email">another@domain.com</a>&gt;</span>',

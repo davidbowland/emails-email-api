@@ -20,6 +20,7 @@ describe('patch-account', () => {
     mocked(dynamodb).getAccountById.mockResolvedValue(account)
     mocked(events).extractJsonPatchFromEvent.mockImplementation((event) => JSON.parse(event.body))
     mocked(events).extractUsernameFromEvent.mockReturnValue(accountId)
+    mocked(events).formatAccount.mockReturnValue(account)
   })
 
   describe('patchAccountHandler', () => {
@@ -41,6 +42,14 @@ describe('patch-account', () => {
       mocked(events).extractJsonPatchFromEvent.mockReturnValueOnce([
         { op: 'replace', path: '/forwardTargets' },
       ] as unknown[] as PatchOperation[])
+      const result = await patchAccountHandler(event)
+      expect(result.statusCode).toEqual(status.BAD_REQUEST.statusCode)
+    })
+
+    test('expect BAD_REQUEST when formatAccount throws', async () => {
+      mocked(events).formatAccount.mockImplementationOnce(() => {
+        throw new Error('something')
+      })
       const result = await patchAccountHandler(event)
       expect(result.statusCode).toEqual(status.BAD_REQUEST.statusCode)
     })

@@ -1,7 +1,7 @@
 import { DynamoDB } from 'aws-sdk'
 
 import { Account, AccountBatch, Email, EmailBatch } from '../types'
-import { dynamodbAccountsTableName, dynamodbReceivedTableName } from '../config'
+import { dynamodbAccountsTableName, dynamodbReceivedTableName, dynamodbSentTableName } from '../config'
 import { xrayCapture } from '../utils/logging'
 
 const dynamodb = xrayCapture(new DynamoDB({ apiVersion: '2012-08-10' }))
@@ -138,5 +138,67 @@ export const setReceivedById = (account: string, id: string, data: Email): Promi
         },
       },
       TableName: dynamodbReceivedTableName,
+    })
+    .promise()
+
+/* Sent */
+
+export const getSentById = (account: string, id: string): Promise<Email> =>
+  dynamodb
+    .getItem({
+      Key: {
+        Account: {
+          S: `${account}`,
+        },
+        MessageID: {
+          S: `${id}`,
+        },
+      },
+      TableName: dynamodbSentTableName,
+    })
+    .promise()
+    .then((response: any) => response.Item.Data.S)
+    .then(JSON.parse)
+
+const getSentFromScan = (response: DynamoDB.Types.ScanOutput): EmailBatch[] =>
+  response.Items?.reduce(
+    (result, item) => [
+      ...result,
+      { accountId: item.Account.S as string, data: JSON.parse(item.Data.S as string), id: item.MessageID.S as string },
+    ],
+    [] as EmailBatch[]
+  ) as EmailBatch[]
+
+export const getSent = (account: string): Promise<EmailBatch[]> =>
+  dynamodb
+    .query({
+      ExpressionAttributeNames: { '#d': 'Data' },
+      ExpressionAttributeValues: {
+        ':v1': {
+          S: `${account}`,
+        },
+      },
+      KeyConditionExpression: 'Account = :v1',
+      ProjectionExpression: 'Account,MessageID,#d',
+      TableName: dynamodbSentTableName,
+    })
+    .promise()
+    .then((response: any) => getSentFromScan(response))
+
+export const setSentById = (account: string, id: string, data: Email): Promise<DynamoDB.Types.PutItemOutput> =>
+  dynamodb
+    .putItem({
+      Item: {
+        Account: {
+          S: `${account}`,
+        },
+        Data: {
+          S: JSON.stringify(data),
+        },
+        MessageID: {
+          S: `${id}`,
+        },
+      },
+      TableName: dynamodbSentTableName,
     })
     .promise()

@@ -1,0 +1,12 @@
+{
+  "body": "{\"bcc\":[{\"address\":\"bcc@domain.com\",\"name\":\"BCC\"}],\"cc\":[{\"address\":\"cc@domain.com\",\"name\":\"CC\"}],\"html\":\"<p>Lorem ipsum</p>\",\"inReplyTo\":\"765rf-76trf-90oij-edfvb-nbfa2\",\"references\":[\"765rf-76trf-90oij-edfvb-nbfa2\",\"5tyha-0oigk-mnfdb-dfgsh-jhgfa\"],\"subject\":\"Hello, world!\",\"text\":\"Lorem ipsum\",\"to\":[{\"address\":\"another@domain.com\",\"name\":\"Someone else\"}]}",
+  "pathParameters": {
+    "accountId": "account"
+  },
+  "requestContext": {
+    "http": {
+      "method": "POST",
+      "path": "/v1/accounts/account/emails/sent"
+    }
+  }
+}

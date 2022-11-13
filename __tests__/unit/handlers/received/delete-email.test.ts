@@ -57,7 +57,7 @@ describe('delete-email', () => {
     test('expect NOT_FOUND on getReceivedById reject', async () => {
       mocked(dynamodb).getReceivedById.mockRejectedValueOnce(undefined)
       const result = await deleteEmailHandler(event)
-      expect(result).toEqual(expect.objectContaining(status.NOT_FOUND))
+      expect(result).toEqual(status.NOT_FOUND)
     })
 
     test('expect INTERNAL_SERVER_ERROR when deleteReceivedById rejects', async () => {

@@ -3,8 +3,8 @@ import { mocked } from 'jest-mock'
 import * as dynamodb from '@services/dynamodb'
 import * as events from '@utils/events'
 import * as s3 from '@services/s3'
+import { APIGatewayProxyEventV2, AttachmentContents } from '@types'
 import { accountId, email } from '../../../__mocks__'
-import { APIGatewayProxyEventV2 } from '@types'
 import eventJson from '@events/received/attachments/get-attachment.json'
 import { getAttachmentHandler } from '@handlers/received/attachments/get-attachment'
 import status from '@utils/status'
@@ -51,8 +51,14 @@ describe('get-attachment', () => {
       expect(result).toEqual(expect.objectContaining(status.NOT_FOUND))
     })
 
-    test('expect INTERNAL_SERVER_ERROR when getS3Object rejects', async () => {
+    test('expect NOT_FOUND when getS3Object rejects', async () => {
       mocked(s3).getS3Object.mockRejectedValueOnce(undefined)
+      const result = await getAttachmentHandler(event)
+      expect(result).toEqual(status.NOT_FOUND)
+    })
+
+    test('expect INTERNAL_SERVER_ERROR when getS3Object returns invalid value', async () => {
+      mocked(s3).getS3Object.mockResolvedValueOnce({} as unknown as AttachmentContents)
       const result = await getAttachmentHandler(event)
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })

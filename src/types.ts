@@ -1,8 +1,28 @@
 export * from 'aws-lambda'
+export { AxiosResponse } from 'axios'
 export { ParsedMail } from 'mailparser'
 export { Operation as PatchOperation } from 'fast-json-patch'
 
 import { Metadata } from 'aws-sdk/clients/s3'
+
+export interface StringObject {
+  [key: string]: string
+}
+
+export interface AttachmentCommon {
+  checksum: string
+  cid?: string
+  content: any
+  contentDisposition: string
+  contentId?: string
+  contentType: string
+  filename?: string
+  headerLines: any
+  headers: StringObject
+  related?: boolean
+  size: number
+  type: 'attachment'
+}
 
 export interface AttachmentContents {
   body: Buffer | string
@@ -11,6 +31,7 @@ export interface AttachmentContents {
 
 export interface Account {
   forwardTargets: string[]
+  name: string
 }
 
 export interface AccountBatch {
@@ -37,12 +58,14 @@ export interface Email {
 }
 
 export interface EmailAddress {
+  address: string
+  name: string
+}
+
+export interface EmailAddressParsed {
   html: string
   text: string
-  value: {
-    address: string
-    name: string
-  }[]
+  value: EmailAddress[]
 }
 
 export interface EmailAddressReplyTo {
@@ -68,17 +91,33 @@ export interface EmailContents {
   attachments?: EmailAttachment[]
   bodyHtml: string
   bodyText: string
-  ccAddress?: EmailAddress
-  fromAddress: EmailAddress
+  ccAddress?: EmailAddressParsed
+  fromAddress: EmailAddressParsed
   headers: EmailHeaders
   id: string
   inReplyTo?: string
   references: string[]
   replyToAddress: EmailAddressReplyTo
   subject?: string
-  toAddress?: EmailAddress
+  toAddress?: EmailAddressParsed
 }
 
-export interface StringObject {
-  [key: string]: string
+export interface EmailOutbound {
+  attachments?: AttachmentCommon[]
+  bcc?: EmailAddress[]
+  cc?: EmailAddress[]
+  from: EmailAddress
+  headers?: StringObject
+  html: string
+  inReplyTo?: string
+  references?: string[]
+  replyTo: EmailAddress
+  sender: EmailAddress
+  subject: string
+  text: string
+  to: EmailAddress[]
+}
+
+export interface EmailResponse {
+  messageId: string
 }

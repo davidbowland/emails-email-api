@@ -2,7 +2,7 @@ import { mocked } from 'jest-mock'
 
 import * as dynamodb from '@services/dynamodb'
 import * as events from '@utils/events'
-import { account, accountId, email, emailId } from '../../__mocks__'
+import { accountId, email, emailId } from '../../__mocks__'
 import { APIGatewayProxyEventV2 } from '@types'
 import eventJson from '@events/received/put-email.json'
 import { putEmailHandler } from '@handlers/received/put-email'
@@ -17,7 +17,6 @@ describe('put-email', () => {
 
   beforeAll(() => {
     mocked(dynamodb).setReceivedById.mockResolvedValue(undefined)
-    mocked(dynamodb).getAccountById.mockResolvedValue(account)
     mocked(events).extractEmailFromEvent.mockReturnValue(email)
   })
 
@@ -38,22 +37,7 @@ describe('put-email', () => {
     test('expect INTERNAL_SERVER_ERROR on setReceivedById reject', async () => {
       mocked(dynamodb).setReceivedById.mockRejectedValueOnce(undefined)
       const result = await putEmailHandler(event)
-      expect(result).toEqual(expect.objectContaining(status.INTERNAL_SERVER_ERROR))
-    })
-
-    test('expect setReceivedById called a second time when getAccountById rejects', async () => {
-      mocked(dynamodb).getAccountById.mockRejectedValueOnce(undefined)
-      await putEmailHandler(event)
-      expect(mocked(dynamodb).setReceivedById).toHaveBeenCalledWith('admin', emailId, email)
-      expect(mocked(dynamodb).setReceivedById).toHaveBeenCalledTimes(2)
-    })
-
-    test('expect INTERNAL_SERVER_ERROR when second setReceivedById rejects', async () => {
-      mocked(dynamodb).setReceivedById.mockResolvedValueOnce(undefined)
-      mocked(dynamodb).getAccountById.mockRejectedValueOnce(undefined)
-      mocked(dynamodb).setReceivedById.mockRejectedValueOnce(undefined)
-      const result = await putEmailHandler(event)
-      expect(result).toEqual(expect.objectContaining(status.INTERNAL_SERVER_ERROR))
+      expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
 
     test('expect OK and body on success', async () => {

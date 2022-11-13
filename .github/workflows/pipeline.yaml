@@ -11,11 +11,13 @@ env:
   PIPELINE_USER_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   SAM_TEMPLATE: template.yaml
   TESTING_STACK_NAME: emails-email-api-test
+  TESTING_QUEUE_API_KEY: ${{ secrets.TESTING_QUEUE_API_KEY }}
   TESTING_PIPELINE_EXECUTION_ROLE: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/emails-pipeline-test
   TESTING_CLOUDFORMATION_EXECUTION_ROLE: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/emails-cloudformation-test
   TESTING_ARTIFACTS_BUCKET: emails-lambda-test
   TESTING_REGION: ${{ secrets.AWS_REGION }}
   PROD_STACK_NAME: emails-email-api
+  PROD_QUEUE_API_KEY: ${{ secrets.PROD_QUEUE_API_KEY }}
   PROD_PIPELINE_EXECUTION_ROLE: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/emails-pipeline
   PROD_CLOUDFORMATION_EXECUTION_ROLE: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/emails-cloudformation
   PROD_ARTIFACTS_BUCKET: emails-lambda
@@ -85,7 +87,7 @@ jobs:
             --s3-prefix ${TESTING_STACK_NAME} \
             --no-fail-on-empty-changeset \
             --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE} \
-            --parameter-overrides 'Environment=test'
+            --parameter-overrides 'Environment=test QueueApiKey=${TESTING_QUEUE_API_KEY}'
 
   build-and-package:
     name: Build and package lambda
@@ -198,7 +200,7 @@ jobs:
             --s3-prefix ${TESTING_STACK_NAME} \
             --no-fail-on-empty-changeset \
             --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE} \
-            --parameter-overrides 'Environment=test'
+            --parameter-overrides 'Environment=test QueueApiKey=${TESTING_QUEUE_API_KEY}'
 
   deploy-prod:
     name: Deploy to production
@@ -237,7 +239,8 @@ jobs:
             --s3-bucket ${PROD_ARTIFACTS_BUCKET} \
             --s3-prefix ${PROD_STACK_NAME} \
             --no-fail-on-empty-changeset \
-            --role-arn ${PROD_CLOUDFORMATION_EXECUTION_ROLE}
+            --role-arn ${PROD_CLOUDFORMATION_EXECUTION_ROLE} \
+            --parameter-overrides 'QueueApiKey=${PROD_QUEUE_API_KEY}'
 
   bump:
     name: Bump the version number and tag the commit

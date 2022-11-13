@@ -47,8 +47,14 @@ describe('get-contents', () => {
       expect(result).toEqual(expect.objectContaining(status.NOT_FOUND))
     })
 
-    test('expect INTERNAL_SERVER_ERROR when getS3Object rejects', async () => {
+    test('expect NOT_FOUND when getS3Object rejects', async () => {
       mocked(s3).getS3Object.mockRejectedValueOnce(undefined)
+      const result = await getContentsHandler(event)
+      expect(result).toEqual(status.NOT_FOUND)
+    })
+
+    test('expect INTERNAL_SERVER_ERROR when simpleParser rejects', async () => {
+      mocked(mailparser).simpleParser.mockRejectedValueOnce(undefined)
       const result = await getContentsHandler(event)
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
@@ -66,6 +72,7 @@ describe('get-contents', () => {
           bodyHtml:
             '<a href="http://www.gutenberg.org/files/8164/8164-h/8164-h.htm">http://www.gutenberg.org/files/8164/8164-h/8164-h.htm</a>\n',
           bodyText: 'http://www.gutenberg.org/files/8164/8164-h/8164-h.htm\n',
+          ccAddress: ['cc@domain.com'],
           fromAddress: {
             html: '<span class="mp_address_group"><span class="mp_address_name">Another Person</span> &lt;<a href="mailto:another@domain.com" class="mp_address_email">another@domain.com</a>&gt;</span>',
             text: 'Another Person <another@domain.com>',

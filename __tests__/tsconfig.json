@@ -33,6 +33,7 @@
       "@events/*": ["events/*"],
       "@handlers/*": ["src/handlers/*"],
       "@services/*": ["src/services/*"],
+      "@setup-server": ["__tests__/setup-server"],
       "@types": ["src/types"],
       "@utils/*": ["src/utils/*"]
     } /* Specify a set of entries that re-map imports to additional lookup locations. */,
