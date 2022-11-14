@@ -2,6 +2,7 @@ import { account, accountId, email, emailId } from '../__mocks__'
 import {
   deleteAccountById,
   deleteReceivedById,
+  deleteSentById,
   getAccountById,
   getAccounts,
   getReceived,
@@ -216,6 +217,23 @@ describe('dynamodb', () => {
   })
 
   describe('sent', () => {
+    describe('deleteSentById', () => {
+      test('expect accountId and emailId passed to delete', async () => {
+        await deleteSentById(accountId, emailId)
+        expect(mockDeleteItem).toHaveBeenCalledWith({
+          Key: {
+            Account: {
+              S: `${accountId}`,
+            },
+            MessageID: {
+              S: `${emailId}`,
+            },
+          },
+          TableName: 'sent-table',
+        })
+      })
+    })
+
     describe('getSentById', () => {
       beforeAll(() => {
         mockGetItem.mockResolvedValue({ Item: { Data: { S: JSON.stringify(account) } } })

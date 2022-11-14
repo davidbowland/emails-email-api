@@ -57,11 +57,7 @@ describe('events', () => {
         const result = convertOutboundToContents(emailId, outboundWithEmpty)
         expect(result).toEqual(
           expect.objectContaining({
-            ccAddress: {
-              html: '',
-              text: '',
-              value: [],
-            },
+            ccAddress: undefined,
             references: [],
             toAddress: {
               html: '',

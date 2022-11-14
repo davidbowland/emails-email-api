@@ -143,6 +143,21 @@ export const setReceivedById = (account: string, id: string, data: Email): Promi
 
 /* Sent */
 
+export const deleteSentById = (account: string, id: string): Promise<DynamoDB.Types.DeleteItemOutput> =>
+  dynamodb
+    .deleteItem({
+      Key: {
+        Account: {
+          S: `${account}`,
+        },
+        MessageID: {
+          S: `${id}`,
+        },
+      },
+      TableName: dynamodbSentTableName,
+    })
+    .promise()
+
 export const getSentById = (account: string, id: string): Promise<Email> =>
   dynamodb
     .getItem({

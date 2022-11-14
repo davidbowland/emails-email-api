@@ -33,10 +33,10 @@ export const formatAccount = (account: Account): Account => {
 export const convertOutboundToContents = (messageId: string, outbound: EmailOutbound): EmailContents => ({
   bodyHtml: outbound.html,
   bodyText: outbound.text,
-  ccAddress: {
+  ccAddress: outbound.cc && {
     html: '',
     text: '',
-    value: outbound.cc ?? [],
+    value: outbound.cc,
   },
   fromAddress: {
     html: '',
