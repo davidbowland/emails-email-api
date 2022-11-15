@@ -47,14 +47,16 @@ describe('events', () => {
 
   describe('email', () => {
     describe('convertOutboundToContents', () => {
+      const timestamp = 1533517138000
+
       test('expect outbound email converted', () => {
-        const result = convertOutboundToContents(emailId, outboundEmail)
+        const result = convertOutboundToContents(emailId, outboundEmail, timestamp)
         expect(result).toEqual(emailContents)
       })
 
       test('expect outbound email converted with empty addresses', () => {
         const outboundWithEmpty = { ...outboundEmail, cc: undefined, references: undefined, to: undefined }
-        const result = convertOutboundToContents(emailId, outboundWithEmpty)
+        const result = convertOutboundToContents(emailId, outboundWithEmpty, timestamp)
         expect(result).toEqual(
           expect.objectContaining({
             ccAddress: undefined,

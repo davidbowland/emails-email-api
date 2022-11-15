@@ -30,7 +30,11 @@ export const formatAccount = (account: Account): Account => {
 
 /* Email */
 
-export const convertOutboundToContents = (messageId: string, outbound: EmailOutbound): EmailContents => ({
+export const convertOutboundToContents = (
+  messageId: string,
+  outbound: EmailOutbound,
+  timestamp: number
+): EmailContents => ({
   bodyHtml: outbound.html,
   bodyText: outbound.text,
   ccAddress: outbound.cc && {
@@ -38,6 +42,7 @@ export const convertOutboundToContents = (messageId: string, outbound: EmailOutb
     text: '',
     value: outbound.cc,
   },
+  date: new Date(timestamp).toISOString(),
   fromAddress: {
     html: '',
     text: '',

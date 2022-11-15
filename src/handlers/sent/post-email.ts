@@ -32,7 +32,7 @@ export const postEmailHandler = async (event: APIGatewayProxyEventV2): Promise<A
       try {
         const { messageId } = await sendEmail(outboundEmail)
         const email = convertOutboundToEmail(outboundEmail)
-        const contents = convertOutboundToContents(messageId, outboundEmail)
+        const contents = convertOutboundToContents(messageId, outboundEmail, email.timestamp)
         await putS3Object(`sent/${accountId}/${messageId}`, JSON.stringify(contents))
         await setSentById(accountId, messageId, email)
         return { ...status.OK, body: JSON.stringify({ ...email, accountId, id: messageId }) }

@@ -92,6 +92,7 @@ export interface EmailContents {
   bodyHtml: string
   bodyText: string
   ccAddress?: EmailAddressParsed
+  date?: string
   fromAddress: EmailAddressParsed
   headers: EmailHeaders
   id: string

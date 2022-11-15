@@ -65,6 +65,7 @@ export const emailContents: EmailContents = {
       },
     ],
   },
+  date: '2018-08-06T00:58:58.000Z',
   fromAddress: {
     html: '',
     text: '',
@@ -149,7 +150,7 @@ export const parsedContents = {
     },
   ],
   cc: ['cc@domain.com'],
-  date: '2018-08-06T00:58:58.000Z',
+  date: new Date('2018-08-06T00:58:58.000Z'),
   from: {
     html: '<span class="mp_address_group"><span class="mp_address_name">Another Person</span> &lt;<a href="mailto:another@domain.com" class="mp_address_email">another@domain.com</a>&gt;</span>',
     text: 'Another Person <another@domain.com>',

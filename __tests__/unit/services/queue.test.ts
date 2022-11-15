@@ -1,14 +1,11 @@
-import { emailId, parsedContents } from '../__mocks__'
+import { emailId, outboundEmail } from '../__mocks__'
 import { queueApiKey, queueApiUrl } from '@config'
 import { rest, server } from '@setup-server'
-import { EmailOutbound } from '@types'
 import { sendEmail } from '@services/queue'
 
 jest.mock('@utils/logging')
 
 describe('queue', () => {
-  const email = parsedContents as unknown as EmailOutbound
-
   describe('sendEmail', () => {
     const postEndpoint = jest.fn().mockReturnValue({ messageId: emailId })
 
@@ -26,12 +23,12 @@ describe('queue', () => {
     })
 
     test('expect email contents to be passed to the endpoint', async () => {
-      await sendEmail(email)
-      expect(postEndpoint).toHaveBeenCalledWith(email)
+      await sendEmail(outboundEmail)
+      expect(postEndpoint).toHaveBeenCalledWith(outboundEmail)
     })
 
     test('expect sendEmail returns messageId', async () => {
-      const result = await sendEmail(email)
+      const result = await sendEmail(outboundEmail)
       expect(result).toEqual({ messageId: '7yh8g-7ytguy-98ui8u-5efka-87y87y' })
     })
   })

@@ -31,6 +31,7 @@ export const convertParsedContentsToEmail = (emailId: string, parsedMail: Parsed
   bodyHtml: (parsedMail.html ?? parsedMail.textAsHtml) || '',
   bodyText: parsedMail.text ?? '',
   ccAddress: parsedMail.cc as unknown as EmailAddressParsed,
+  date: parsedMail.date?.toISOString(),
   fromAddress: (parsedMail.from ?? emptyAddress) as EmailAddressParsed,
   headers: parsedMail.headers as unknown as EmailHeaders,
   id: parsedMail.messageId ?? emailId,
