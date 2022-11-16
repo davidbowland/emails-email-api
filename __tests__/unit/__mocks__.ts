@@ -37,6 +37,8 @@ export const emailId = '7yh8g-7ytguy-98ui8u-5efka-87y87y'
 
 export const email: Email = {
   attachments: [attachment],
+  bcc: ['bcc@domain.com'],
+  cc: ['cc@domain.com'],
   from: 'another@domain.com',
   subject: 'Hello, world',
   timestamp: 1666560735998,
@@ -53,6 +55,16 @@ export const emailBatch: EmailBatch[] = [
 ]
 
 export const emailContents: EmailContents = {
+  bccAddress: {
+    html: '',
+    text: '',
+    value: [
+      {
+        address: 'bcc@domain.com',
+        name: 'BCC',
+      },
+    ],
+  },
   bodyHtml: '<p>Lorem ipsum</p>',
   bodyText: 'Lorem ipsum',
   ccAddress: {

@@ -118,8 +118,8 @@ describe('events', () => {
           attachments: [
             { filename: 'whatever.pdf', id: '9ijh-6tfg-dfsf3-sdfio-johac', size: 10000, type: 'application/pdf' },
           ],
-          bcc: undefined,
-          cc: undefined,
+          bcc: ['bcc@domain.com'],
+          cc: ['cc@domain.com'],
           from: 'another@domain.com',
           subject: 'Hello, world',
           timestamp: 1666560735998,
@@ -128,8 +128,8 @@ describe('events', () => {
         })
       })
 
-      test.each([undefined, 'a string'])('expect error on invalid to - %s', (to) => {
-        const invalidEmail = { ...email, to } as unknown as Email
+      test('expect error on invalid to', () => {
+        const invalidEmail = { ...email, to: 'a string' } as unknown as Email
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
@@ -140,6 +140,11 @@ describe('events', () => {
 
       test('expect error on invalid bcc', () => {
         const invalidEmail = { ...email, bcc: 'a string' } as unknown as Email
+        expect(() => formatEmail(invalidEmail)).toThrow()
+      })
+
+      test('expect error on missing to, cc, and bcc', () => {
+        const invalidEmail = { ...email, bcc: undefined, cc: undefined, to: undefined } as unknown as Email
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
@@ -216,8 +221,8 @@ describe('events', () => {
         })
       })
 
-      test.each([undefined, 'a string'])('expect error on invalid to - %s', (to) => {
-        const invalidEmail = { ...outboundEmail, to } as unknown as EmailOutbound
+      test('expect error on invalid to', () => {
+        const invalidEmail = { ...outboundEmail, to: 'a string' } as unknown as EmailOutbound
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
@@ -228,6 +233,16 @@ describe('events', () => {
 
       test('expect error on invalid bcc', () => {
         const invalidEmail = { ...outboundEmail, bcc: 'a string' } as unknown as EmailOutbound
+        expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
+      })
+
+      test('expect error on missing to, cc, and bcc', () => {
+        const invalidEmail = {
+          ...outboundEmail,
+          bcc: undefined,
+          cc: undefined,
+          to: undefined,
+        } as unknown as EmailOutbound
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 

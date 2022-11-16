@@ -1,5 +1,5 @@
 {
-  "body": "{\"attachments\":[{\"filename\":\"fnord.jpg\",\"id\":\"9ijh-6tfg-dfsf3-sdfio-johac\",\"size\":1976642,\"type\":\"image/jpeg\"}],\"from\":\"another@domain.com\",\"subject\":\"Hello, world\",\"timestamp\":1666560735998,\"to\":[\"account@domain.com\"]}",
+  "body": "{\"attachments\":[{\"filename\":\"fnord.jpg\",\"id\":\"9ijh-6tfg-dfsf3-sdfio-johac\",\"size\":1976642,\"type\":\"image/jpeg\"}],\"bcc\":[\"bcc@domain.com\"],\"cc\":[\"cc@domain.com\"],\"from\":\"another@domain.com\",\"subject\":\"Hello, world\",\"timestamp\":1666560735998,\"to\":[\"account@domain.com\"],\"viewed\":false}",
   "pathParameters": {
     "accountId": "account",
     "emailId": "7yh8g-7ytguy-98ui8u-5efka-87y87y"

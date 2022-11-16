@@ -35,6 +35,11 @@ export const convertOutboundToContents = (
   outbound: EmailOutbound,
   timestamp: number
 ): EmailContents => ({
+  bccAddress: outbound.bcc && {
+    html: '',
+    text: '',
+    value: outbound.bcc,
+  },
   bodyHtml: outbound.html,
   bodyText: outbound.text,
   ccAddress: outbound.cc && {
@@ -81,19 +86,17 @@ export const convertOutboundToEmail = (outbound: EmailOutbound): Email => ({
 })
 
 export const formatEmail = (email: Email): Email => {
-  if (!Array.isArray(email.to)) {
-    throw new Error('to must be an array of email addresses')
-  }
-  if (email.cc && !Array.isArray(email.cc)) {
+  if (email.to && !Array.isArray(email.to)) {
+    throw new Error('to must be an array of email addresses, when present')
+  } else if (email.cc && !Array.isArray(email.cc)) {
     throw new Error('cc must be an array of email addresses, when present')
-  }
-  if (email.bcc && !Array.isArray(email.bcc)) {
-    throw new Error('cc must be an array of email addresses, when present')
-  }
-  if (!email.from) {
+  } else if (email.bcc && !Array.isArray(email.bcc)) {
+    throw new Error('bcc must be an array of email addresses, when present')
+  } else if ((email.to?.length ?? 0) + (email.cc?.length ?? 0) + (email.bcc?.length ?? 0) === 0) {
+    throw new Error('One of to, cc, or bcc must be an array of addresses')
+  } else if (!email.from) {
     throw new Error('from must be specified')
-  }
-  if (email.subject === undefined) {
+  } else if (email.subject === undefined) {
     throw new Error('subject must be specified')
   }
   if (email.attachments) {
@@ -103,14 +106,11 @@ export const formatEmail = (email: Email): Email => {
     for (const attachment of email.attachments) {
       if (!attachment.filename) {
         throw new Error('filename is required for all attachments')
-      }
-      if (!attachment.id) {
+      } else if (!attachment.id) {
         throw new Error('id is required for all attachments')
-      }
-      if (!attachment.size || isNaN(parseInt(`${attachment.size}`.replace(/\D+/g, ''), 10))) {
+      } else if (!attachment.size || isNaN(parseInt(`${attachment.size}`.replace(/\D+/g, ''), 10))) {
         throw new Error('size miust be an integer for all attachments')
-      }
-      if (!attachment.type) {
+      } else if (!attachment.type) {
         throw new Error('type is required for all attachments')
       }
     }
@@ -134,25 +134,21 @@ export const formatEmail = (email: Email): Email => {
 }
 
 export const formatEmailOutbound = (email: EmailOutbound, from: EmailAddress): EmailOutbound => {
-  if (!Array.isArray(email.to)) {
-    throw new Error('to must be an array of email addresses')
-  }
-  if (email.cc && !Array.isArray(email.cc)) {
+  if (email.to && !Array.isArray(email.to)) {
+    throw new Error('to must be an array of email addresses, when present')
+  } else if (email.cc && !Array.isArray(email.cc)) {
     throw new Error('cc must be an array of email addresses, when present')
-  }
-  if (email.bcc && !Array.isArray(email.bcc)) {
+  } else if (email.bcc && !Array.isArray(email.bcc)) {
     throw new Error('bcc must be an array of email addresses, when present')
-  }
-  if (email.html === undefined) {
+  } else if ((email.to?.length ?? 0) + (email.cc?.length ?? 0) + (email.bcc?.length ?? 0) === 0) {
+    throw new Error('One of to, cc, or bcc must be an array of addresses')
+  } else if (email.html === undefined) {
     throw new Error('html must be specified')
-  }
-  if (email.references && !Array.isArray(email.references)) {
+  } else if (email.references && !Array.isArray(email.references)) {
     throw new Error('references must be an array of message IDs, when present')
-  }
-  if (email.subject === undefined) {
+  } else if (email.subject === undefined) {
     throw new Error('subject must be specified')
-  }
-  if (email.text === undefined) {
+  } else if (email.text === undefined) {
     throw new Error('text must be specified')
   }
   // if (email.attachments) {
