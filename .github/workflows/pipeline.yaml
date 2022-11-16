@@ -87,7 +87,7 @@ jobs:
             --s3-prefix ${TESTING_STACK_NAME} \
             --no-fail-on-empty-changeset \
             --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE} \
-            --parameter-overrides 'Environment=test QueueApiKey=${TESTING_QUEUE_API_KEY}'
+            --parameter-overrides "Environment=test QueueApiKey=${TESTING_QUEUE_API_KEY}"
 
   build-and-package:
     name: Build and package lambda
@@ -200,7 +200,7 @@ jobs:
             --s3-prefix ${TESTING_STACK_NAME} \
             --no-fail-on-empty-changeset \
             --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE} \
-            --parameter-overrides 'Environment=test QueueApiKey=${TESTING_QUEUE_API_KEY}'
+            --parameter-overrides "Environment=test QueueApiKey=${TESTING_QUEUE_API_KEY}"
 
   deploy-prod:
     name: Deploy to production
@@ -240,7 +240,7 @@ jobs:
             --s3-prefix ${PROD_STACK_NAME} \
             --no-fail-on-empty-changeset \
             --role-arn ${PROD_CLOUDFORMATION_EXECUTION_ROLE} \
-            --parameter-overrides 'QueueApiKey=${PROD_QUEUE_API_KEY}'
+            --parameter-overrides "QueueApiKey=${PROD_QUEUE_API_KEY}"
 
   bump:
     name: Bump the version number and tag the commit
