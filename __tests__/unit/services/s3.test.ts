@@ -1,13 +1,15 @@
-import { copyS3Object, deleteS3Object, getS3Object, putS3Object } from '@services/s3'
+import { copyS3Object, deleteS3Object, getS3Object, putS3Object, uploadS3Object } from '@services/s3'
 import { emailBucket } from '@config'
 
 const mockCopyObject = jest.fn()
+const mockCreatePresignedPost = jest.fn()
 const mockDeleteObject = jest.fn()
 const mockGetObject = jest.fn()
 const mockPutObject = jest.fn()
 jest.mock('aws-sdk', () => ({
   S3: jest.fn(() => ({
     copyObject: (...args) => ({ promise: () => mockCopyObject(...args) }),
+    createPresignedPost: (...args) => mockCreatePresignedPost(...args),
     deleteObject: (...args) => ({ promise: () => mockDeleteObject(...args) }),
     getObject: (...args) => ({ promise: () => mockGetObject(...args) }),
     putObject: (...args) => ({ promise: () => mockPutObject(...args) }),
@@ -135,6 +137,38 @@ describe('S3', () => {
       const rejectReason = 'unable to foo the bar'
       mockPutObject.mockRejectedValueOnce(rejectReason)
       await expect(putS3Object(key, valueToPut, metadata)).rejects.toEqual(rejectReason)
+    })
+  })
+
+  describe('uploadS3Object', () => {
+    const presignedPost = { fields: {}, url: 'http://localhost' }
+    beforeAll(() => {
+      mockCreatePresignedPost.mockImplementation((params, callback) => callback(null, presignedPost))
+    })
+
+    test('expect key and data passed to S3 as object', async () => {
+      await uploadS3Object(key)
+      expect(mockCreatePresignedPost).toHaveBeenCalledWith(
+        {
+          Bucket: emailBucket,
+          Conditions: [['content-length-range', 0, 157_286_400]],
+          Fields: {
+            key,
+          },
+        },
+        expect.anything()
+      )
+    })
+
+    test('expect result matches expected result', async () => {
+      const result = await uploadS3Object(key)
+      expect(result).toEqual(presignedPost)
+    })
+
+    test('expect reject when promise rejects', async () => {
+      const rejectReason = 'unable to foo the bar'
+      mockCreatePresignedPost.mockImplementationOnce((params, callback) => callback(rejectReason, null))
+      await expect(uploadS3Object(key)).rejects.toEqual(rejectReason)
     })
   })
 })

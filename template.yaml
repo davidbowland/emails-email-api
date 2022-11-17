@@ -1197,7 +1197,72 @@ Resources:
       FilterPattern: '[timestamp, uuid, level="ERROR", message]'
       LogGroupName: !Ref PostSentEmailLogGroup
 
-  ## Received contents
+  ## Sent attachments
+
+  PostSentAttachmentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/sent/attachments/post-attachment.postAttachmentHandler
+      CodeUri: './dist'
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Description: emails-email-api post sent email attachment
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3CrudPolicy:
+            BucketName: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+      Environment:
+        Variables:
+          EMAIL_BUCKET: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+          MAX_UPLOAD_SIZE: 10000000 # 10MB
+      Events:
+        ApiKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts/{accountId}/emails/sent/attachments
+            Method: post
+            Auth:
+              ApiKeyRequired: true
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}/emails/sent/attachments
+            Method: post
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+      Tracing: Active
+
+  PostSentAttachmentLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: PostSentAttachmentFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PostSentAttachmentFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  PostSentAttachmentLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref PostSentAttachmentLogGroup
+
+  ## Sent contents
 
   GetSentContentsFunction:
     Type: AWS::Serverless::Function

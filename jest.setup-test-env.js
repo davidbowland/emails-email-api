@@ -17,6 +17,7 @@ process.env.EMAIL_DOMAIN = 'bowland.link'
 // S3
 
 process.env.EMAIL_BUCKET = 'emails-service-storage'
+process.env.MAX_UPLOAD_SIZE = '10000000'
 
 // SQS
 

@@ -65,7 +65,7 @@ describe('get-attachment', () => {
 
     test('expect OK when index exists', async () => {
       const result = await getAttachmentHandler(event)
-      expect(mocked(s3.getS3Object)).toHaveBeenCalledWith(
+      expect(mocked(s3).getS3Object).toHaveBeenCalledWith(
         'received/account/7yh8g-7ytguy-98ui8u-5efka-87y87y/9ijh-6tfg-dfsf3-sdfio-johac'
       )
       expect(result).toEqual({

@@ -29,3 +29,4 @@ export const mutateObjectOnJsonPatch = false
 // S3
 
 export const emailBucket = process.env.EMAIL_BUCKET as string
+export const maxUploadSize = process.env.MAX_UPLOAD_SIZE as string
