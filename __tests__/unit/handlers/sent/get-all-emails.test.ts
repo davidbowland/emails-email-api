@@ -2,8 +2,8 @@ import { mocked } from 'jest-mock'
 
 import * as dynamodb from '@services/dynamodb'
 import * as events from '@utils/events'
-import { accountId, emailBatch } from '../../__mocks__'
 import { APIGatewayProxyEventV2 } from '@types'
+import { emailBatch } from '../../__mocks__'
 import eventJson from '@events/sent/get-all-emails.json'
 import { getAllEmailsHandler } from '@handlers/sent/get-all-emails'
 import status from '@utils/status'
@@ -17,12 +17,12 @@ describe('get-all-emails', () => {
 
   beforeAll(() => {
     mocked(dynamodb).getSent.mockResolvedValue(emailBatch)
-    mocked(events).extractUsernameFromEvent.mockReturnValue(accountId)
+    mocked(events).validateUsernameInEvent.mockReturnValue(true)
   })
 
   describe('getAllEmailsHandler', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
-      mocked(events).extractUsernameFromEvent.mockReturnValueOnce('no-match')
+      mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await getAllEmailsHandler(event)
       expect(result).toEqual(status.FORBIDDEN)
     })

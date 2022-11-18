@@ -2,8 +2,8 @@ import { mocked } from 'jest-mock'
 
 import * as dynamodb from '@services/dynamodb'
 import * as events from '@utils/events'
-import { account, accountId } from '../__mocks__'
 import { APIGatewayProxyEventV2 } from '@types'
+import { account } from '../__mocks__'
 import { deleteAccountHandler } from '@handlers/delete-account'
 import eventJson from '@events/delete-account.json'
 import status from '@utils/status'
@@ -17,12 +17,12 @@ describe('delete-account', () => {
 
   beforeAll(() => {
     mocked(dynamodb).getAccountById.mockResolvedValue(account)
-    mocked(events).extractUsernameFromEvent.mockReturnValue(accountId)
+    mocked(events).validateUsernameInEvent.mockReturnValue(true)
   })
 
   describe('deleteAccountHandler', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
-      mocked(events).extractUsernameFromEvent.mockReturnValueOnce('no-match')
+      mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await deleteAccountHandler(event)
       expect(result).toEqual(status.FORBIDDEN)
     })

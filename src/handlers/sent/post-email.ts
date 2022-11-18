@@ -3,7 +3,7 @@ import {
   convertOutboundToContents,
   convertOutboundToEmail,
   extractEmailOutboundFromEvent,
-  extractUsernameFromEvent,
+  validateUsernameInEvent,
 } from '../../utils/events'
 import { getAccountById, setSentById } from '../../services/dynamodb'
 import { log, logError } from '../../utils/logging'
@@ -17,7 +17,7 @@ export const postEmailHandler = async (event: APIGatewayProxyEventV2): Promise<A
   try {
     const accountId = event.pathParameters?.accountId as string
     try {
-      if (accountId !== extractUsernameFromEvent(event)) {
+      if (!validateUsernameInEvent(event, accountId)) {
         return status.FORBIDDEN
       }
     } catch (error) {

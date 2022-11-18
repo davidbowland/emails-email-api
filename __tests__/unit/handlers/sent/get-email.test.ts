@@ -17,18 +17,18 @@ describe('get-email', () => {
 
   beforeAll(() => {
     mocked(dynamodb).getSentById.mockResolvedValue(email)
-    mocked(events).extractUsernameFromEvent.mockReturnValue(accountId)
+    mocked(events).validateUsernameInEvent.mockReturnValue(true)
   })
 
   describe('getEmailHandler', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
-      mocked(events).extractUsernameFromEvent.mockReturnValueOnce('no-match')
+      mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await getEmailHandler(event)
       expect(result).toEqual(status.FORBIDDEN)
     })
 
-    test('expect INTERNAL_SERVER_ERROR when extractUsernameFromEvent throws', async () => {
-      mocked(events).extractUsernameFromEvent.mockImplementationOnce(() => {
+    test('expect INTERNAL_SERVER_ERROR when validateUsernameInEvent throws', async () => {
+      mocked(events).validateUsernameInEvent.mockImplementationOnce(() => {
         throw new Error('fnord')
       })
       const result = await getEmailHandler(event)

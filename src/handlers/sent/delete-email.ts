@@ -2,8 +2,8 @@ import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../types'
 import { deleteSentById, getSentById } from '../../services/dynamodb'
 import { log, logError } from '../../utils/logging'
 import { deleteS3Object } from '../../services/s3'
-import { extractUsernameFromEvent } from '../../utils/events'
 import status from '../../utils/status'
+import { validateUsernameInEvent } from '../../utils/events'
 
 const deleteEmail = async (accountId: string, emailId: string) => {
   try {
@@ -37,7 +37,7 @@ export const deleteEmailHandler = async (event: APIGatewayProxyEventV2): Promise
   try {
     const accountId = event.pathParameters?.accountId as string
     const emailId = event.pathParameters?.emailId as string
-    if (accountId !== extractUsernameFromEvent(event)) {
+    if (!validateUsernameInEvent(event, accountId)) {
       return status.FORBIDDEN
     }
 

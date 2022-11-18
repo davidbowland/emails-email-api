@@ -234,7 +234,12 @@ export const extractJwtFromEvent = (event: APIGatewayProxyEventV2): StringObject
     (event.headers.authorization || event.headers.Authorization || '').replace(/^Bearer /i, '')
   ) as StringObject
 
-export const extractUsernameFromEvent = (event: APIGatewayProxyEventV2): string =>
-  event.requestContext?.domainPrefix === 'emails-email-api-internal'
-    ? (event.headers['x-user-name'] as string)
-    : extractJwtFromEvent(event)['cognito:username']
+export const validateUsernameInEvent = (event: APIGatewayProxyEventV2, username: string): boolean => {
+  if (
+    event.requestContext?.domainPrefix === 'emails-email-api-internal' ||
+    event.requestContext?.domainPrefix === 'localhost'
+  ) {
+    return true
+  }
+  return extractJwtFromEvent(event)['cognito:username'] === username
+}

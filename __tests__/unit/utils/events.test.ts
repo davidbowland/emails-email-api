@@ -8,10 +8,10 @@ import {
   extractEmailOutboundFromEvent,
   extractJsonPatchFromEvent,
   extractJwtFromEvent,
-  extractUsernameFromEvent,
   formatAccount,
   formatEmail,
   formatEmailOutbound,
+  validateUsernameInEvent,
 } from '@utils/events'
 import getEventJson from '@events/received/get-email.json'
 import patchEventJson from '@events/patch-account.json'
@@ -378,24 +378,28 @@ describe('events', () => {
       })
     })
 
-    describe('extractUsernameFromEvent', () => {
-      test('expect user name returned when external', () => {
-        const result = extractUsernameFromEvent(getEventJson as unknown as APIGatewayProxyEventV2)
-        expect(result).toEqual('admin')
+    describe('validateUsernameInEvent', () => {
+      const username = 'admin'
+
+      test('expect true returned when external and matching', () => {
+        const result = validateUsernameInEvent(getEventJson as unknown as APIGatewayProxyEventV2, username)
+        expect(result).toEqual(true)
       })
 
-      test('expect user name returned when internal', () => {
+      test('expect false returned when external and not matching', () => {
+        const result = validateUsernameInEvent(getEventJson as unknown as APIGatewayProxyEventV2, 'not-matching')
+        expect(result).toEqual(false)
+      })
+
+      test('expect true returned when internal', () => {
         const event = {
           ...getEventJson,
-          headers: {
-            'x-user-name': 'not-admin',
-          },
           requestContext: {
-            domainPrefix: 'emails-email-api-internal',
+            domainPrefix: 'localhost',
           },
         } as unknown as APIGatewayProxyEventV2
-        const result = extractUsernameFromEvent(event)
-        expect(result).toEqual('not-admin')
+        const result = validateUsernameInEvent(event, username)
+        expect(result).toEqual(true)
       })
     })
   })

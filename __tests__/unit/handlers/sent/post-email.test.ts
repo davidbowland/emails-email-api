@@ -24,19 +24,19 @@ describe('post-email', () => {
     mocked(events).convertOutboundToContents.mockReturnValue(emailContents)
     mocked(events).convertOutboundToEmail.mockReturnValue(email)
     mocked(events).extractEmailOutboundFromEvent.mockReturnValue(outboundEmail)
-    mocked(events).extractUsernameFromEvent.mockReturnValue(accountId)
+    mocked(events).validateUsernameInEvent.mockReturnValue(true)
     mocked(queue).sendEmail.mockResolvedValue({ messageId: emailId })
   })
 
   describe('postEmailHandler', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
-      mocked(events).extractUsernameFromEvent.mockReturnValueOnce('no-match')
+      mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await postEmailHandler(event)
       expect(result).toEqual(status.FORBIDDEN)
     })
 
-    test('expect INTERNAL_SERVER_ERROR when extractUsernameFromEvent throws', async () => {
-      mocked(events).extractUsernameFromEvent.mockImplementationOnce(() => {
+    test('expect INTERNAL_SERVER_ERROR when validateUsernameInEvent throws', async () => {
+      mocked(events).validateUsernameInEvent.mockImplementationOnce(() => {
         throw new Error('fnord')
       })
       const result = await postEmailHandler(event)

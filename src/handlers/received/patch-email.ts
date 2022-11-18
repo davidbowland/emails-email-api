@@ -1,7 +1,7 @@
 import { applyPatch } from 'fast-json-patch'
 
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2, Email, PatchOperation } from '../../types'
-import { extractJsonPatchFromEvent, extractUsernameFromEvent } from '../../utils/events'
+import { extractJsonPatchFromEvent, validateUsernameInEvent } from '../../utils/events'
 import { getReceivedById, setReceivedById } from '../../services/dynamodb'
 import { log, logError } from '../../utils/logging'
 import { mutateObjectOnJsonPatch, throwOnInvalidJsonPatch } from '../../config'
@@ -45,7 +45,7 @@ export const patchEmailHandler = async (event: APIGatewayProxyEventV2): Promise<
   try {
     const accountId = event.pathParameters?.accountId as string
     const emailId = event.pathParameters?.emailId as string
-    if (accountId !== extractUsernameFromEvent(event)) {
+    if (!validateUsernameInEvent(event, accountId)) {
       return status.FORBIDDEN
     }
 

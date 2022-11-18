@@ -15,12 +15,13 @@ jest.mock('@utils/logging')
 describe('get-account-internal', () => {
   const adminAccount = {
     forwardTargets: ['another@domain.com'],
+    name: 'Admin',
   }
   const event = eventJson as unknown as APIGatewayProxyEventV2
 
   beforeAll(() => {
     mocked(dynamodb).getAccountById.mockResolvedValue(account)
-    mocked(events).extractUsernameFromEvent.mockReturnValue(accountId)
+    mocked(events).validateUsernameInEvent.mockReturnValue(true)
   })
 
   describe('getAccountInternalHandler', () => {

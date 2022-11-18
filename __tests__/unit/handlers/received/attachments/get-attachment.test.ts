@@ -4,7 +4,7 @@ import * as dynamodb from '@services/dynamodb'
 import * as events from '@utils/events'
 import * as s3 from '@services/s3'
 import { APIGatewayProxyEventV2, AttachmentContents } from '@types'
-import { accountId, email } from '../../../__mocks__'
+import { email } from '../../../__mocks__'
 import eventJson from '@events/received/attachments/get-attachment.json'
 import { getAttachmentHandler } from '@handlers/received/attachments/get-attachment'
 import status from '@utils/status'
@@ -19,7 +19,7 @@ describe('get-attachment', () => {
 
   beforeAll(() => {
     mocked(dynamodb).getReceivedById.mockResolvedValue(email)
-    mocked(events).extractUsernameFromEvent.mockReturnValue(accountId)
+    mocked(events).validateUsernameInEvent.mockReturnValue(true)
     mocked(s3).getS3Object.mockResolvedValue({
       body: Buffer.from('fnord'),
       metadata: {
@@ -32,13 +32,13 @@ describe('get-attachment', () => {
 
   describe('getAttachmentHandler', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
-      mocked(events).extractUsernameFromEvent.mockReturnValueOnce('no-match')
+      mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await getAttachmentHandler(event)
       expect(result).toEqual(status.FORBIDDEN)
     })
 
-    test('expect INTERNAL_SERVER_ERROR when extractUsernameFromEvent throws', async () => {
-      mocked(events).extractUsernameFromEvent.mockImplementationOnce(() => {
+    test('expect INTERNAL_SERVER_ERROR when validateUsernameInEvent throws', async () => {
+      mocked(events).validateUsernameInEvent.mockImplementationOnce(() => {
         throw new Error('fnord')
       })
       const result = await getAttachmentHandler(event)

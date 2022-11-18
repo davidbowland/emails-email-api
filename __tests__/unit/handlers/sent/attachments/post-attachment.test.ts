@@ -4,7 +4,6 @@ import * as events from '@utils/events'
 import * as s3 from '@services/s3'
 import * as uuid from 'uuid'
 import { APIGatewayProxyEventV2 } from '@types'
-import { accountId } from '../../../__mocks__'
 import eventJson from '@events/sent/attachments/post-attachment.json'
 import { postAttachmentHandler } from '@handlers/sent/attachments/post-attachment'
 import status from '@utils/status'
@@ -32,20 +31,20 @@ describe('post-attachment', () => {
   const expectedUuid = 'uuuuu-uuuuu-iiiii-ddddd'
 
   beforeAll(() => {
-    mocked(events).extractUsernameFromEvent.mockReturnValue(accountId)
+    mocked(events).validateUsernameInEvent.mockReturnValue(true)
     mocked(s3).uploadS3Object.mockResolvedValue(expectedS3Result)
     mocked(uuid).v4.mockReturnValue(expectedUuid)
   })
 
   describe('postAttachmentHandler', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
-      mocked(events).extractUsernameFromEvent.mockReturnValueOnce('no-match')
+      mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await postAttachmentHandler(event)
       expect(result).toEqual(status.FORBIDDEN)
     })
 
-    test('expect INTERNAL_SERVER_ERROR when extractUsernameFromEvent throws', async () => {
-      mocked(events).extractUsernameFromEvent.mockImplementationOnce(() => {
+    test('expect INTERNAL_SERVER_ERROR when validateUsernameInEvent throws', async () => {
+      mocked(events).validateUsernameInEvent.mockImplementationOnce(() => {
         throw new Error('fnord')
       })
       const result = await postAttachmentHandler(event)

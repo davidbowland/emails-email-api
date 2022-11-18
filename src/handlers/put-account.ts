@@ -1,5 +1,5 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../types'
-import { extractAccountFromEvent, extractUsernameFromEvent } from '../utils/events'
+import { extractAccountFromEvent, validateUsernameInEvent } from '../utils/events'
 import { log, logError } from '../utils/logging'
 import { setAccountById } from '../services/dynamodb'
 import status from '../utils/status'
@@ -8,7 +8,7 @@ export const putAccountHandler = async (event: APIGatewayProxyEventV2): Promise<
   log('Received event', { ...event, body: undefined })
   try {
     const accountId = event.pathParameters?.accountId as string
-    if (accountId !== extractUsernameFromEvent(event)) {
+    if (!validateUsernameInEvent(event, accountId)) {
       return status.FORBIDDEN
     }
 
