@@ -6,6 +6,7 @@ import * as uuid from 'uuid'
 import { APIGatewayProxyEventV2 } from '@types'
 import eventJson from '@events/sent/attachments/post-attachment.json'
 import { postAttachmentHandler } from '@handlers/sent/attachments/post-attachment'
+import { postAttachmentResult } from '../../../__mocks__'
 import status from '@utils/status'
 
 jest.mock('uuid')
@@ -15,24 +16,11 @@ jest.mock('@utils/logging')
 
 describe('post-attachment', () => {
   const event = eventJson as unknown as APIGatewayProxyEventV2
-  const expectedS3Result = {
-    fields: {
-      Policy: 'eyJleHBpcmF0aW9uIjoiMjAyMi0xMS',
-      'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
-      'X-Amz-Credential': 'ASIAXGOMQQ35UBADF3FP/20221117/us-east-1/s3/aws4_request',
-      'X-Amz-Date': '20221117T061759Z',
-      'X-Amz-Security-Token': 'IQoJb3JpZ2luX2VjEB4aCXVzLWVhc3QtMiJIMEYCIQCLh3B9MRsCAXTnu0',
-      'X-Amz-Signature': 'f6e87c8b350576d9a3ca56b70660',
-      bucket: 'emails-service-storage-test',
-      key: 'attachments/account/uuuuu-uuuuu-iiiii-ddddd',
-    },
-    url: 'https://s3.amazonaws.com/emails-service-storage-test',
-  }
   const expectedUuid = 'uuuuu-uuuuu-iiiii-ddddd'
 
   beforeAll(() => {
     mocked(events).validateUsernameInEvent.mockReturnValue(true)
-    mocked(s3).uploadS3Object.mockResolvedValue(expectedS3Result)
+    mocked(s3).uploadS3Object.mockResolvedValue(postAttachmentResult as any)
     mocked(uuid).v4.mockReturnValue(expectedUuid)
   })
 
@@ -62,7 +50,7 @@ describe('post-attachment', () => {
       expect(mocked(s3).uploadS3Object).toHaveBeenCalledWith('attachments/account/uuuuu-uuuuu-iiiii-ddddd')
       expect(result).toEqual({
         ...status.CREATED,
-        body: JSON.stringify(expectedS3Result),
+        body: JSON.stringify(postAttachmentResult),
       })
     })
   })

@@ -123,3 +123,8 @@ export interface EmailOutbound {
 export interface EmailResponse {
   messageId: string
 }
+
+export interface PostSignedUrl {
+  fields: StringObject
+  url: string
+}

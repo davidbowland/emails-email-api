@@ -182,7 +182,7 @@ describe('S3', () => {
       expect(mockCreatePresignedPost).toHaveBeenCalledWith(
         {
           Bucket: emailBucket,
-          Conditions: [['content-length-range', 0, 157_286_400]],
+          Conditions: [['content-length-range', 0, 10_000_000]],
           Fields: {
             key,
           },

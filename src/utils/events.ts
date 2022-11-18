@@ -70,12 +70,12 @@ export const convertOutboundToContents = (
 })
 
 export const convertOutboundToEmail = (outbound: EmailOutbound): Email => ({
-  // attachments: outbound.attachments?.map((attachment) => ({
-  //   filename: attachment.filename || 'unknown',
-  //   id: attachment.cid || attachment.checksum,
-  //   size: parseInt(`${attachment.size}`.replace(/\D+/g, ''), 10),
-  //   type: attachment.type,
-  // })),
+  attachments: outbound.attachments?.map((attachment) => ({
+    filename: attachment.filename || 'unknown',
+    id: attachment.cid || attachment.checksum,
+    size: parseInt(`${attachment.size}`.replace(/\D+/g, ''), 10),
+    type: attachment.contentType,
+  })),
   bcc: outbound.bcc?.map((address) => address.address),
   cc: outbound.cc?.map((address) => address.address),
   from: outbound.from.address,
@@ -151,50 +151,47 @@ export const formatEmailOutbound = (email: EmailOutbound, from: EmailAddress): E
   } else if (email.text === undefined) {
     throw new Error('text must be specified')
   }
-  // if (email.attachments) {
-  //   if (!Array.isArray(email.attachments)) {
-  //     throw new Error('attachments must be an array of attachments, when present')
-  //   }
-  //   for (const attachment of email.attachments) {
-  //     if (!attachment.checksum) {
-  //       throw new Error('checksum is required for all attachments')
-  //     }
-  //     if (!attachment.content) {
-  //       throw new Error('content is required for all attachments')
-  //     }
-  //     if (!attachment.contentDisposition) {
-  //       throw new Error('contentDisposition is required for all attachments')
-  //     }
-  //     if (!attachment.contentType) {
-  //       throw new Error('contentType is required for all attachments')
-  //     }
-  //     if (!attachment.headerLines) {
-  //       throw new Error('headerLines is required for all attachments')
-  //     }
-  //     if (!attachment.headers) {
-  //       throw new Error('headers is required for all attachments')
-  //     }
-  //     if (!attachment.size || isNaN(parseInt(`${attachment.size}`.replace(/\D+/g, ''), 10))) {
-  //       throw new Error('size miust be an integer for all attachments')
-  //     }
-  //   }
-  // }
+  if (email.attachments) {
+    if (!Array.isArray(email.attachments)) {
+      throw new Error('attachments must be an array of attachments, when present')
+    }
+    for (const attachment of email.attachments) {
+      if (!attachment.content) {
+        throw new Error('content is required for all attachments')
+      }
+      if (!attachment.contentDisposition) {
+        throw new Error('contentDisposition is required for all attachments')
+      }
+      if (!attachment.contentType) {
+        throw new Error('contentType is required for all attachments')
+      }
+      if (!attachment.headerLines) {
+        throw new Error('headerLines is required for all attachments')
+      }
+      if (!attachment.headers) {
+        throw new Error('headers is required for all attachments')
+      }
+      if (!attachment.size || isNaN(parseInt(`${attachment.size}`.replace(/\D+/g, ''), 10))) {
+        throw new Error('size must be an integer for all attachments')
+      }
+    }
+  }
 
   return {
-    // attachments: email.attachments?.map((attachment) => ({
-    //   checksum: attachment.checksum,
-    //   cid: attachment.cid,
-    //   content: attachment.content,
-    //   contentDisposition: attachment.contentDisposition,
-    //   contentId: attachment.contentId,
-    //   contentType: attachment.contentType,
-    //   filename: attachment.filename,
-    //   headerLines: attachment.headerLines,
-    //   headers: attachment.headers,
-    //   related: attachment.related,
-    //   size: attachment.size,
-    //   type: 'attachment',
-    // })),
+    attachments: email.attachments?.map((attachment) => ({
+      checksum: attachment.checksum,
+      cid: attachment.cid,
+      content: attachment.content,
+      contentDisposition: attachment.contentDisposition,
+      contentId: attachment.contentId,
+      contentType: attachment.contentType,
+      filename: attachment.filename,
+      headerLines: attachment.headerLines,
+      headers: attachment.headers,
+      related: attachment.related,
+      size: attachment.size,
+      type: 'attachment',
+    })),
     bcc: email.bcc,
     cc: email.cc,
     from: from,

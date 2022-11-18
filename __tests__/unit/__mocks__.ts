@@ -8,6 +8,7 @@ import {
   EmailOutbound,
   ParsedMail,
   PatchOperation,
+  PostSignedUrl,
 } from '@types'
 
 export const accountId = 'account'
@@ -119,6 +120,32 @@ export const jsonPatchOperations: PatchOperation[] = [
 ]
 
 export const outboundEmail: EmailOutbound = {
+  attachments: [
+    {
+      checksum: '335a8335831f08e391d3a1d38a3167c9',
+      cid: 'f_kx2qxtrl0',
+      content: { data: [130], type: 'Buffer' },
+      contentDisposition: 'attachment',
+      contentId: '<f_kx2qxtrl0>',
+      contentType: 'image/png',
+      filename: 'alexa-screenshot.png',
+      headerLines: {},
+      headers: {},
+      size: 25277,
+      type: 'attachment',
+    },
+    {
+      checksum: 'i87trdcvbnmnbfdfyujigf',
+      content: { data: [130], type: 'Buffer' },
+      contentDisposition: 'attachment',
+      contentId: '<f_kx2qxtrl0>',
+      contentType: 'image/png',
+      headerLines: {},
+      headers: {},
+      size: 45678,
+      type: 'attachment',
+    },
+  ],
   bcc: [{ address: 'bcc@domain.com', name: 'BCC' }],
   cc: [{ address: 'cc@domain.com', name: 'CC' }],
   from: { address: 'account@domain.com', name: 'Any' },
@@ -203,3 +230,17 @@ export const parsedContents = {
     ],
   },
 } as unknown as ParsedMail
+
+export const postAttachmentResult: PostSignedUrl = {
+  fields: {
+    Policy: 'eyJleHBpcmF0aW9uIjoiMjAyMi0xMS',
+    'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+    'X-Amz-Credential': 'ASIAXGOMQQ35UBADF3FP/20221117/us-east-1/s3/aws4_request',
+    'X-Amz-Date': '20221117T061759Z',
+    'X-Amz-Security-Token': 'IQoJb3JpZ2luX2VjEB4aCXVzLWVhc3QtMiJIMEYCIQCLh3B9MRsCAXTnu0',
+    'X-Amz-Signature': 'f6e87c8b350576d9a3ca56b70660',
+    bucket: 'emails-service-storage-test',
+    key: 'attachments/account/uuuuu-uuuuu-iiiii-ddddd',
+  },
+  url: 'https://s3.amazonaws.com/emails-service-storage-test',
+}

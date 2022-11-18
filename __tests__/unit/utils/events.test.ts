@@ -76,6 +76,20 @@ describe('events', () => {
         const result = convertOutboundToEmail(outboundEmail)
         expect(result).toEqual(
           expect.objectContaining({
+            attachments: [
+              {
+                filename: 'alexa-screenshot.png',
+                id: 'f_kx2qxtrl0',
+                size: 25277,
+                type: 'image/png',
+              },
+              {
+                filename: 'unknown',
+                id: 'i87trdcvbnmnbfdfyujigf',
+                size: 45678,
+                type: 'image/png',
+              },
+            ],
             bcc: ['bcc@domain.com'],
             cc: ['cc@domain.com'],
             from: 'account@domain.com',
@@ -158,15 +172,28 @@ describe('events', () => {
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
-      test.each([
-        'a string',
-        [{ ...attachment, filename: undefined }],
-        [{ ...attachment, id: undefined }],
-        [{ ...attachment, size: undefined }],
-        [{ ...attachment, size: 'fnord' }],
-        [{ ...attachment, type: undefined }],
-      ])('expect error on invalid attachments - %o', (attachments) => {
-        const invalidEmail = { ...email, attachments } as unknown as Email
+      test('expect error on invalid attachments', () => {
+        const invalidEmail = { ...email, attachments: 'a string' } as unknown as Email
+        expect(() => formatEmail(invalidEmail)).toThrow()
+      })
+
+      test('expect error on invalid attachment filename', () => {
+        const invalidEmail = { ...email, attachments: [{ ...attachment, filename: undefined }] } as unknown as Email
+        expect(() => formatEmail(invalidEmail)).toThrow()
+      })
+
+      test('expect error on invalid attachment id', () => {
+        const invalidEmail = { ...email, attachments: [{ ...attachment, id: undefined }] } as unknown as Email
+        expect(() => formatEmail(invalidEmail)).toThrow()
+      })
+
+      test('expect error on invalid attachment size', () => {
+        const invalidEmail = { ...email, attachments: [{ ...attachment, size: undefined }] } as unknown as Email
+        expect(() => formatEmail(invalidEmail)).toThrow()
+      })
+
+      test('expect error on invalid attachment type', () => {
+        const invalidEmail = { ...email, attachments: [{ ...attachment, type: undefined }] } as unknown as Email
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
@@ -178,10 +205,48 @@ describe('events', () => {
     })
 
     describe('formatEmailOutbound', () => {
+      const firstAttachment = outboundEmail.attachments[0]
+
       test('expect formatted email', () => {
         const emailWithInvalid = { ...outboundEmail, something: 'invalid' } as unknown as EmailOutbound
         const formattedEmail = formatEmailOutbound(emailWithInvalid, from)
         expect(formattedEmail).toEqual({
+          attachments: [
+            {
+              checksum: '335a8335831f08e391d3a1d38a3167c9',
+              cid: 'f_kx2qxtrl0',
+              content: {
+                data: [130],
+                type: 'Buffer',
+              },
+              contentDisposition: 'attachment',
+              contentId: '<f_kx2qxtrl0>',
+              contentType: 'image/png',
+              filename: 'alexa-screenshot.png',
+              headerLines: {},
+              headers: {},
+              related: undefined,
+              size: 25277,
+              type: 'attachment',
+            },
+            {
+              checksum: 'i87trdcvbnmnbfdfyujigf',
+              cid: undefined,
+              content: {
+                data: [130],
+                type: 'Buffer',
+              },
+              contentDisposition: 'attachment',
+              contentId: '<f_kx2qxtrl0>',
+              contentType: 'image/png',
+              filename: undefined,
+              headerLines: {},
+              headers: {},
+              related: undefined,
+              size: 45678,
+              type: 'attachment',
+            },
+          ],
           bcc: [
             {
               address: 'bcc@domain.com',
@@ -263,6 +328,59 @@ describe('events', () => {
 
       test('expect error on invalid text', () => {
         const invalidEmail = { ...outboundEmail, text: undefined } as unknown as EmailOutbound
+        expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
+      })
+
+      test('expect error on invalid attachments', () => {
+        const invalidEmail = { ...outboundEmail, attachments: 'a string' } as unknown as EmailOutbound
+        expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
+      })
+
+      test('expect error on invalid attachment content', () => {
+        const invalidEmail = {
+          ...outboundEmail,
+          attachments: [{ ...firstAttachment, content: undefined }],
+        } as unknown as EmailOutbound
+        expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
+      })
+
+      test('expect error on invalid attachment contentDisposition', () => {
+        const invalidEmail = {
+          ...outboundEmail,
+          attachments: [{ ...firstAttachment, contentDisposition: undefined }],
+        } as unknown as EmailOutbound
+        expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
+      })
+
+      test('expect error on invalid attachment contentType', () => {
+        const invalidEmail = {
+          ...outboundEmail,
+          attachments: [{ ...firstAttachment, contentType: undefined }],
+        } as unknown as EmailOutbound
+        expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
+      })
+
+      test('expect error on invalid attachment headerLines', () => {
+        const invalidEmail = {
+          ...outboundEmail,
+          attachments: [{ ...firstAttachment, headerLines: undefined }],
+        } as unknown as EmailOutbound
+        expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
+      })
+
+      test('expect error on invalid attachment headers', () => {
+        const invalidEmail = {
+          ...outboundEmail,
+          attachments: [{ ...firstAttachment, headers: undefined }],
+        } as unknown as EmailOutbound
+        expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
+      })
+
+      test('expect error on invalid attachment size', () => {
+        const invalidEmail = {
+          ...outboundEmail,
+          attachments: [{ ...firstAttachment, size: undefined }],
+        } as unknown as EmailOutbound
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
     })
