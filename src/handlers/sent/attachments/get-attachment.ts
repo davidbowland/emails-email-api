@@ -1,5 +1,5 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../../types'
-import { getReceivedById } from '../../../services/dynamodb'
+import { getSentById } from '../../../services/dynamodb'
 import { getSignedS3Url } from '../../../services/s3'
 import { log } from '../../../utils/logging'
 import status from '../../../utils/status'
@@ -16,9 +16,9 @@ export const getAttachmentHandler = async (event: APIGatewayProxyEventV2): Promi
     }
 
     try {
-      await getReceivedById(accountId, emailId)
+      await getSentById(accountId, emailId)
       try {
-        const url = await getSignedS3Url(`received/${accountId}/${emailId}/${attachmentId}`)
+        const url = await getSignedS3Url(`sent/${accountId}/${emailId}/${attachmentId}`)
         return {
           ...status.OK,
           body: JSON.stringify({ url }),

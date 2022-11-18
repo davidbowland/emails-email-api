@@ -5,8 +5,8 @@ import * as events from '@utils/events'
 import * as s3 from '@services/s3'
 import { APIGatewayProxyEventV2 } from '@types'
 import { email } from '../../../__mocks__'
-import eventJson from '@events/received/attachments/get-attachment.json'
-import { getAttachmentHandler } from '@handlers/received/attachments/get-attachment'
+import eventJson from '@events/sent/attachments/get-attachment.json'
+import { getAttachmentHandler } from '@handlers/sent/attachments/get-attachment'
 import status from '@utils/status'
 
 jest.mock('@services/dynamodb')
@@ -19,7 +19,7 @@ describe('get-attachment', () => {
   const signedUrl = 'http://localhost/some/really/long/url#with-an-access-key'
 
   beforeAll(() => {
-    mocked(dynamodb).getReceivedById.mockResolvedValue(email)
+    mocked(dynamodb).getSentById.mockResolvedValue(email)
     mocked(events).validateUsernameInEvent.mockReturnValue(true)
     mocked(s3).getSignedS3Url.mockResolvedValue(signedUrl)
   })
@@ -39,8 +39,8 @@ describe('get-attachment', () => {
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
 
-    test('expect NOT_FOUND on getReceivedById reject', async () => {
-      mocked(dynamodb).getReceivedById.mockRejectedValueOnce(undefined)
+    test('expect NOT_FOUND on getSentById reject', async () => {
+      mocked(dynamodb).getSentById.mockRejectedValueOnce(undefined)
       const result = await getAttachmentHandler(event)
       expect(result).toEqual(status.NOT_FOUND)
     })
@@ -54,7 +54,7 @@ describe('get-attachment', () => {
     test('expect OK when index exists', async () => {
       const result = await getAttachmentHandler(event)
       expect(mocked(s3).getSignedS3Url).toHaveBeenCalledWith(
-        'received/account/7yh8g-7ytguy-98ui8u-5efka-87y87y/9ijh-6tfg-dfsf3-sdfio-johac'
+        'sent/account/7yh8g-7ytguy-98ui8u-5efka-87y87y/9ijh-6tfg-dfsf3-sdfio-johac'
       )
       expect(result.body).toEqual(JSON.stringify({ url: signedUrl }))
       expect(result).toEqual(expect.objectContaining(status.OK))

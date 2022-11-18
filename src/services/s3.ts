@@ -18,6 +18,9 @@ export const getS3Object = (key: string): Promise<AttachmentContents> =>
     .promise()
     .then((result: any) => ({ body: result.Body as string, metadata: result.Metadata }))
 
+export const getSignedS3Url = (key: string): Promise<string> =>
+  s3.getSignedUrlPromise('getObject', { Bucket: emailBucket, Expires: 300, Key: key })
+
 export const putS3Object = (
   key: string,
   body: Buffer | string,

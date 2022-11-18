@@ -1,10 +1,11 @@
-import { copyS3Object, deleteS3Object, getS3Object, putS3Object, uploadS3Object } from '@services/s3'
+import { copyS3Object, deleteS3Object, getS3Object, getSignedS3Url, putS3Object, uploadS3Object } from '@services/s3'
 import { emailBucket } from '@config'
 
 const mockCopyObject = jest.fn()
 const mockCreatePresignedPost = jest.fn()
 const mockDeleteObject = jest.fn()
 const mockGetObject = jest.fn()
+const mockGetSignedUrl = jest.fn()
 const mockPutObject = jest.fn()
 jest.mock('aws-sdk', () => ({
   S3: jest.fn(() => ({
@@ -12,6 +13,7 @@ jest.mock('aws-sdk', () => ({
     createPresignedPost: (...args) => mockCreatePresignedPost(...args),
     deleteObject: (...args) => ({ promise: () => mockDeleteObject(...args) }),
     getObject: (...args) => ({ promise: () => mockGetObject(...args) }),
+    getSignedUrlPromise: (...args) => mockGetSignedUrl(...args),
     putObject: (...args) => ({ promise: () => mockPutObject(...args) }),
   })),
 }))
@@ -107,6 +109,34 @@ describe('S3', () => {
     })
   })
 
+  describe('getSignedS3Url', () => {
+    const signedUrl = 'http://localhost/some/really/long/url#with-an-access-key'
+
+    beforeAll(() => {
+      mockGetSignedUrl.mockResolvedValue(signedUrl)
+    })
+
+    test('expect key and data passed to S3 as object', async () => {
+      await getSignedS3Url(key)
+      expect(mockGetSignedUrl).toHaveBeenCalledWith('getObject', {
+        Bucket: emailBucket,
+        Expires: 300,
+        Key: key,
+      })
+    })
+
+    test('expect result matches expected result', async () => {
+      const result = await getSignedS3Url(key)
+      expect(result).toEqual(signedUrl)
+    })
+
+    test('expect reject when promise rejects', async () => {
+      const rejectReason = 'unable to foo the bar'
+      mockGetSignedUrl.mockRejectedValueOnce(rejectReason)
+      await expect(getSignedS3Url(key)).rejects.toEqual(rejectReason)
+    })
+  })
+
   describe('putS3Object', () => {
     const metadata = {
       'Content-Type': 'text/plain',
@@ -142,6 +172,7 @@ describe('S3', () => {
 
   describe('uploadS3Object', () => {
     const presignedPost = { fields: {}, url: 'http://localhost' }
+
     beforeAll(() => {
       mockCreatePresignedPost.mockImplementation((params, callback) => callback(null, presignedPost))
     })
