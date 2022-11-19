@@ -56,6 +56,20 @@ export const emailBatch: EmailBatch[] = [
 ]
 
 export const emailContents: EmailContents = {
+  attachments: [
+    {
+      filename: 'alexa-screenshot.png',
+      id: 'f_kx2qxtrl0',
+      size: 25277,
+      type: 'image/png',
+    },
+    {
+      filename: 'unknown',
+      id: 'i87trdcvbnmnbfdfyujigf',
+      size: 45678,
+      type: 'image/png',
+    },
+  ],
   bccAddress: {
     html: '',
     text: '',

@@ -3,8 +3,10 @@ import jwt from 'jsonwebtoken'
 import {
   APIGatewayProxyEventV2,
   Account,
+  AttachmentCommon,
   Email,
   EmailAddress,
+  EmailAttachment,
   EmailContents,
   EmailHeaders,
   EmailOutbound,
@@ -30,11 +32,19 @@ export const formatAccount = (account: Account): Account => {
 
 /* Email */
 
+const convertOutboundAttachmentToEmail = (attachment: AttachmentCommon): EmailAttachment => ({
+  filename: attachment.filename || 'unknown',
+  id: attachment.cid || attachment.checksum,
+  size: parseInt(`${attachment.size}`.replace(/\D+/g, ''), 10),
+  type: attachment.contentType,
+})
+
 export const convertOutboundToContents = (
   messageId: string,
   outbound: EmailOutbound,
   timestamp: number
 ): EmailContents => ({
+  attachments: outbound.attachments?.map(convertOutboundAttachmentToEmail),
   bccAddress: outbound.bcc && {
     html: '',
     text: '',
@@ -70,12 +80,7 @@ export const convertOutboundToContents = (
 })
 
 export const convertOutboundToEmail = (outbound: EmailOutbound): Email => ({
-  attachments: outbound.attachments?.map((attachment) => ({
-    filename: attachment.filename || 'unknown',
-    id: attachment.cid || attachment.checksum,
-    size: parseInt(`${attachment.size}`.replace(/\D+/g, ''), 10),
-    type: attachment.contentType,
-  })),
+  attachments: outbound.attachments?.map(convertOutboundAttachmentToEmail),
   bcc: outbound.bcc?.map((address) => address.address),
   cc: outbound.cc?.map((address) => address.address),
   from: outbound.from.address,

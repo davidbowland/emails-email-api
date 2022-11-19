@@ -69,7 +69,22 @@ describe('post-email', () => {
         'sent/account/7yh8g-7ytguy-98ui8u-5efka-87y87y',
         JSON.stringify(emailContents)
       )
+      expect(mocked(s3).copyS3Object).toHaveBeenCalledWith(
+        'attachments/account/f_kx2qxtrl0',
+        'sent/account/7yh8g-7ytguy-98ui8u-5efka-87y87y/f_kx2qxtrl0'
+      )
+      expect(mocked(s3).copyS3Object).toHaveBeenCalledWith(
+        'attachments/account/i87trdcvbnmnbfdfyujigf',
+        'sent/account/7yh8g-7ytguy-98ui8u-5efka-87y87y/i87trdcvbnmnbfdfyujigf'
+      )
       expect(mocked(dynamodb).setSentById).toHaveBeenCalledWith(accountId, emailId, email)
+    })
+
+    test('expect no copy calls when no attachments', async () => {
+      mocked(events).convertOutboundToContents.mockReturnValue({ ...emailContents, attachments: undefined })
+      await postEmailHandler(event)
+
+      expect(mocked(s3).copyS3Object).not.toHaveBeenCalled()
     })
 
     test('expect OK when index exists', async () => {

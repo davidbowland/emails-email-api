@@ -5,10 +5,10 @@ import {
   extractEmailOutboundFromEvent,
   validateUsernameInEvent,
 } from '../../utils/events'
+import { copyS3Object, putS3Object } from '../../services/s3'
 import { getAccountById, setSentById } from '../../services/dynamodb'
 import { log, logError } from '../../utils/logging'
 import { emailDomain } from '../../config'
-import { putS3Object } from '../../services/s3'
 import { sendEmail } from '../../services/queue'
 import status from '../../utils/status'
 
@@ -34,6 +34,12 @@ export const postEmailHandler = async (event: APIGatewayProxyEventV2): Promise<A
         const email = convertOutboundToEmail(outboundEmail)
         const contents = convertOutboundToContents(messageId, outboundEmail, email.timestamp)
         await putS3Object(`sent/${accountId}/${messageId}`, JSON.stringify(contents))
+        for (const attachment of contents.attachments ?? []) {
+          await copyS3Object(
+            `attachments/${accountId}/${attachment.id}`,
+            `sent/${accountId}/${messageId}/${attachment.id}`
+          )
+        }
         await setSentById(accountId, messageId, email)
         return { ...status.OK, body: JSON.stringify({ ...email, accountId, id: messageId }) }
       } catch (error) {
