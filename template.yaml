@@ -1126,6 +1126,68 @@ Resources:
       FilterPattern: '[timestamp, uuid, level="ERROR", message]'
       LogGroupName: !Ref GetSentEmailLogGroup
 
+  PatchSentEmailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/sent/patch-email.patchEmailHandler
+      CodeUri: './dist'
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Description: emails-email-api patch sent email
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SentTable
+      Environment:
+        Variables:
+          DYNAMODB_SENT_TABLE_NAME: !Ref SentTable
+      Events:
+        ApiKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts/{accountId}/emails/sent/{emailId}
+            Method: patch
+            Auth:
+              ApiKeyRequired: true
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}/emails/sent/{emailId}
+            Method: patch
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+      Tracing: Active
+
+  PatchSentEmailLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: PatchSentEmailFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PatchSentEmailFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  PatchSentEmailLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref PatchSentEmailLogGroup
+
   PostSentEmailFunction:
     Type: AWS::Serverless::Function
     Properties:

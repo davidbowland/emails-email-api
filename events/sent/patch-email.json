@@ -1,0 +1,16 @@
+{
+  "body": "[{\"op\":\"replace\",\"path\":\"/viewed\",\"value\":true}]",
+  "headers": {
+    "authorization": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL2NvZ25pdG8taWRwLnVzLWVhc3QtMi5hbWF6b25hd3MuY29tL3VzLWVhc3QtMl94cXh6eUlPejQiLCJpYXQiOjE2NjY2NzYwMDMsImV4cCI6MTY5ODIxMjAwMywiYXVkIjoiZW1haWxzLmRib3dsYW5kLmNvbSIsInN1YiI6ImVmZDMxYjY3LTE5ZjItNGQwYS1hNzIzLTc4NTA2ZmZjMGI3ZSIsImNvZ25pdG86dXNlcm5hbWUiOiJhZG1pbiJ9.SIE7jTipsDS31fQTOcMHWTLfdqJ5lq0Zkn6AtVT6hAQ"
+  },
+  "pathParameters": {
+    "accountId": "account",
+    "emailId": "7yh8g-7ytguy-98ui8u-5efka-87y87y"
+  },
+  "requestContext": {
+    "http": {
+      "method": "PATCH",
+      "path": "/v1/accounts/account/emails/sent/7yh8g-7ytguy-98ui8u-5efka-87y87y"
+    }
+  }
+}
