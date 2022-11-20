@@ -130,7 +130,7 @@ export const emailContents: EmailContents = {
 }
 
 export const jsonPatchOperations: PatchOperation[] = [
-  { op: 'replace', path: '/forwardTargets', value: ['another@domain.com'] },
+  { op: 'add', path: '/forwardTargets/1', value: 'another@domain.com' },
 ]
 
 export const outboundEmail: EmailOutbound = {

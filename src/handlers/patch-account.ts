@@ -53,7 +53,7 @@ export const patchAccountHandler = async (event: APIGatewayProxyEventV2): Promis
     }
 
     const patchOperations = extractJsonPatchFromEvent(event)
-    if (!patchOperations.every((value) => value.path === '/forwardTargets' || value.path === '/name')) {
+    if (!patchOperations.every((value) => value.path.startsWith('/forwardTargets/') || value.path === '/name')) {
       return status.FORBIDDEN
     }
     const result = await patchById(accountId, patchOperations)

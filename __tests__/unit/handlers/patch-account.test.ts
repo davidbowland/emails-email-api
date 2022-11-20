@@ -14,7 +14,7 @@ jest.mock('@utils/logging')
 
 describe('patch-account', () => {
   const event = eventJson as unknown as APIGatewayProxyEventV2
-  const expectedResult = { ...account, forwardTargets: ['another@domain.com'] } as Account
+  const expectedResult = { ...account, forwardTargets: ['any@domain.com', 'another@domain.com'] } as Account
 
   beforeAll(() => {
     mocked(dynamodb).getAccountById.mockResolvedValue(account)
@@ -40,7 +40,7 @@ describe('patch-account', () => {
 
     test('expect BAD_REQUEST when patch operations are invalid', async () => {
       mocked(events).extractJsonPatchFromEvent.mockReturnValueOnce([
-        { op: 'replace', path: '/forwardTargets' },
+        { op: 'replace', path: '/forwardTargets/1' },
       ] as unknown[] as PatchOperation[])
       const result = await patchAccountHandler(event)
       expect(result.statusCode).toEqual(status.BAD_REQUEST.statusCode)
