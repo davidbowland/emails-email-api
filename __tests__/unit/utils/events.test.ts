@@ -1,4 +1,4 @@
-import { APIGatewayProxyEventV2, Account, Email, EmailAttachment, EmailOutbound } from '@types'
+import { Account, APIGatewayProxyEventV2, Email, EmailAttachment, EmailOutbound } from '@types'
 import { account, attachmentId, email, emailContents, emailId, jsonPatchOperations, outboundEmail } from '../__mocks__'
 import {
   convertOutboundToContents,

@@ -1,6 +1,6 @@
 import { emailId, parsedContents } from '../__mocks__'
-import { ParsedMail } from '@types'
 import { convertParsedContentsToEmail } from '@utils/parser'
+import { ParsedMail } from '@types'
 
 describe('parser', () => {
   describe('convertParsedContentsToEmail', () => {

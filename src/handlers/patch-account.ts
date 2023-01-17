@@ -1,6 +1,6 @@
 import { applyPatch } from 'fast-json-patch'
 
-import { APIGatewayProxyEventV2, APIGatewayProxyResultV2, Account, PatchOperation } from '../types'
+import { Account, APIGatewayProxyEventV2, APIGatewayProxyResultV2, PatchOperation } from '../types'
 import { extractJsonPatchFromEvent, formatAccount, validateUsernameInEvent } from '../utils/events'
 import { getAccountById, setAccountById } from '../services/dynamodb'
 import { log, logError } from '../utils/logging'

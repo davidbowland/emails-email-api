@@ -1,8 +1,8 @@
 import jwt from 'jsonwebtoken'
 
 import {
-  APIGatewayProxyEventV2,
   Account,
+  APIGatewayProxyEventV2,
   AttachmentCommon,
   Email,
   EmailAddress,
