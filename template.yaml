@@ -137,7 +137,7 @@ Resources:
     Properties:
       Handler: handlers/delete-account.deleteAccountHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -199,7 +199,7 @@ Resources:
     Properties:
       Handler: handlers/get-account-internal.getAccountInternalHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -255,7 +255,7 @@ Resources:
     Properties:
       Handler: handlers/get-account.getAccountHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -317,7 +317,7 @@ Resources:
     Properties:
       Handler: handlers/get-all-accounts.getAllAccountsHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -373,7 +373,7 @@ Resources:
     Properties:
       Handler: handlers/patch-account.patchAccountHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -435,7 +435,7 @@ Resources:
     Properties:
       Handler: handlers/put-account.putAccountHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -499,7 +499,7 @@ Resources:
     Properties:
       Handler: handlers/received/delete-email.deleteEmailHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -564,7 +564,7 @@ Resources:
     Properties:
       Handler: handlers/received/get-all-emails.getAllEmailsHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -626,7 +626,7 @@ Resources:
     Properties:
       Handler: handlers/received/get-email.getEmailHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -688,7 +688,7 @@ Resources:
     Properties:
       Handler: handlers/received/patch-email.patchEmailHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -750,7 +750,7 @@ Resources:
     Properties:
       Handler: handlers/received/put-email.putEmailHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -808,7 +808,7 @@ Resources:
     Properties:
       Handler: handlers/received/attachments/get-attachment.getAttachmentHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -875,7 +875,7 @@ Resources:
     Properties:
       Handler: handlers/received/contents/get-contents.getContentsHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -942,7 +942,7 @@ Resources:
     Properties:
       Handler: handlers/sent/delete-email.deleteEmailHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -1007,7 +1007,7 @@ Resources:
     Properties:
       Handler: handlers/sent/get-all-emails.getAllEmailsHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -1069,7 +1069,7 @@ Resources:
     Properties:
       Handler: handlers/sent/get-email.getEmailHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -1131,7 +1131,7 @@ Resources:
     Properties:
       Handler: handlers/sent/patch-email.patchEmailHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -1193,7 +1193,7 @@ Resources:
     Properties:
       Handler: handlers/sent/post-email.postEmailHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -1266,7 +1266,7 @@ Resources:
     Properties:
       Handler: handlers/sent/attachments/get-attachment.getAttachmentHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -1331,7 +1331,7 @@ Resources:
     Properties:
       Handler: handlers/sent/attachments/post-attachment.postAttachmentHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -1396,7 +1396,7 @@ Resources:
     Properties:
       Handler: handlers/sent/contents/get-contents.getContentsHandler
       CodeUri: './dist'
-      Runtime: nodejs16.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       MemorySize: 128
