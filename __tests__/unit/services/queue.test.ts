@@ -24,11 +24,13 @@ describe('queue', () => {
 
     test('expect email contents to be passed to the endpoint', async () => {
       await sendEmail(outboundEmail)
+
       expect(postEndpoint).toHaveBeenCalledWith(outboundEmail)
     })
 
     test('expect sendEmail returns messageId', async () => {
       const result = await sendEmail(outboundEmail)
+
       expect(result).toEqual({ messageId: '7yh8g-7ytguy-98ui8u-5efka-87y87y' })
     })
   })

@@ -27,6 +27,7 @@ describe('patch-account', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
       mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await patchAccountHandler(event)
+
       expect(result).toEqual(status.FORBIDDEN)
     })
 
@@ -35,6 +36,7 @@ describe('patch-account', () => {
         throw new Error('Bad request')
       })
       const result = await patchAccountHandler(event)
+
       expect(result).toEqual(expect.objectContaining(status.BAD_REQUEST))
     })
 
@@ -43,6 +45,7 @@ describe('patch-account', () => {
         { op: 'replace', path: '/forwardTargets/1' },
       ] as unknown[] as PatchOperation[])
       const result = await patchAccountHandler(event)
+
       expect(result.statusCode).toEqual(status.BAD_REQUEST.statusCode)
     })
 
@@ -51,6 +54,7 @@ describe('patch-account', () => {
         throw new Error('something')
       })
       const result = await patchAccountHandler(event)
+
       expect(result.statusCode).toEqual(status.BAD_REQUEST.statusCode)
     })
 
@@ -59,28 +63,33 @@ describe('patch-account', () => {
         { op: 'replace', path: '/timestamp', value: 876567656 },
       ] as unknown[] as PatchOperation[])
       const result = await patchAccountHandler(event)
+
       expect(result).toEqual(status.FORBIDDEN)
     })
 
     test('expect NOT_FOUND on getAccountById reject', async () => {
       mocked(dynamodb).getAccountById.mockRejectedValueOnce(undefined)
       const result = await patchAccountHandler(event)
+
       expect(result).toEqual(expect.objectContaining(status.NOT_FOUND))
     })
 
     test('expect INTERNAL_SERVER_ERROR on setAccountById reject', async () => {
       mocked(dynamodb).setAccountById.mockRejectedValueOnce(undefined)
       const result = await patchAccountHandler(event)
+
       expect(result).toEqual(expect.objectContaining(status.INTERNAL_SERVER_ERROR))
     })
 
     test('expect setAccountById called with updated object', async () => {
       await patchAccountHandler(event)
+
       expect(mocked(dynamodb).setAccountById).toHaveBeenCalledWith(accountId, expectedResult)
     })
 
     test('expect OK and body', async () => {
       const result = await patchAccountHandler(event)
+
       expect(result).toEqual(expect.objectContaining({ ...status.OK, body: JSON.stringify(expectedResult) }))
     })
   })

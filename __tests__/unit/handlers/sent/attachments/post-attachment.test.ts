@@ -28,6 +28,7 @@ describe('post-attachment', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
       mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await postAttachmentHandler(event)
+
       expect(result).toEqual(status.FORBIDDEN)
     })
 
@@ -36,17 +37,20 @@ describe('post-attachment', () => {
         throw new Error('fnord')
       })
       const result = await postAttachmentHandler(event)
+
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
 
     test('expect INTERNAL_SERVER_ERROR when uploadS3Object rejects', async () => {
       mocked(s3).uploadS3Object.mockRejectedValueOnce(undefined)
       const result = await postAttachmentHandler(event)
+
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
 
     test('expect CREATED and result', async () => {
       const result = await postAttachmentHandler(event)
+
       expect(mocked(s3).uploadS3Object).toHaveBeenCalledWith('attachments/account/uuuuu-uuuuu-iiiii-ddddd')
       expect(result).toEqual({
         ...status.CREATED,

@@ -30,16 +30,19 @@ describe('events', () => {
       test('expect formatted account', () => {
         const accountWithExtra = { ...account, something: 'invalid' } as unknown as Account
         const formattedAccount = formatAccount(accountWithExtra)
+
         expect(formattedAccount).toEqual({ forwardTargets: ['any@domain.com'], name: 'Any' })
       })
 
       test.each([undefined, 'a string'])('expect error on invalid forwardTargets - %s', (forwardTargets) => {
         const invalidAccount = { ...account, forwardTargets } as unknown as Account
+
         expect(() => formatAccount(invalidAccount)).toThrow()
       })
 
       test.each([undefined, ''])('expect error on invalid name - %s', (name) => {
         const invalidAccount = { ...account, name } as unknown as Account
+
         expect(() => formatAccount(invalidAccount)).toThrow()
       })
     })
@@ -51,12 +54,14 @@ describe('events', () => {
 
       test('expect outbound email converted', () => {
         const result = convertOutboundToContents(emailId, outboundEmail, timestamp)
+
         expect(result).toEqual(emailContents)
       })
 
       test('expect outbound email converted with empty addresses', () => {
         const outboundWithEmpty = { ...outboundEmail, cc: undefined, references: undefined, to: undefined }
         const result = convertOutboundToContents(emailId, outboundWithEmpty, timestamp)
+
         expect(result).toEqual(
           expect.objectContaining({
             ccAddress: undefined,
@@ -74,6 +79,7 @@ describe('events', () => {
     describe('convertOutboundToEmail', () => {
       test('expect outbound email converted', () => {
         const result = convertOutboundToEmail(outboundEmail)
+
         expect(result).toEqual(
           expect.objectContaining({
             attachments: [
@@ -104,6 +110,7 @@ describe('events', () => {
       test('expect outbound email converted with empty address', () => {
         const outboundWithEmpty = { ...outboundEmail, bcc: undefined, to: undefined }
         const result = convertOutboundToEmail(outboundWithEmpty)
+
         expect(result).toEqual(
           expect.objectContaining({
             cc: ['cc@domain.com'],
@@ -128,6 +135,7 @@ describe('events', () => {
       test('expect formatted email', () => {
         const emailWithAttachments = { ...email, attachments: [attachment], something: 'invalid' } as unknown as Email
         const formattedEmail = formatEmail(emailWithAttachments)
+
         expect(formattedEmail).toEqual({
           attachments: [
             { filename: 'whatever.pdf', id: '9ijh-6tfg-dfsf3-sdfio-johac', size: 10000, type: 'application/pdf' },
@@ -144,62 +152,74 @@ describe('events', () => {
 
       test('expect error on invalid to', () => {
         const invalidEmail = { ...email, to: 'a string' } as unknown as Email
+
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
       test('expect error on invalid cc', () => {
         const invalidEmail = { ...email, cc: 'a string' } as unknown as Email
+
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
       test('expect error on invalid bcc', () => {
         const invalidEmail = { ...email, bcc: 'a string' } as unknown as Email
+
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
       test('expect error on missing to, cc, and bcc', () => {
         const invalidEmail = { ...email, bcc: undefined, cc: undefined, to: undefined } as unknown as Email
+
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
       test('expect error on invalid from', () => {
         const invalidEmail = { ...email, from: undefined } as unknown as Email
+
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
       test('expect error on invalid subject', () => {
         const invalidEmail = { ...email, subject: undefined } as unknown as Email
+
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
       test('expect error on invalid attachments', () => {
         const invalidEmail = { ...email, attachments: 'a string' } as unknown as Email
+
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
       test('expect error on invalid attachment filename', () => {
         const invalidEmail = { ...email, attachments: [{ ...attachment, filename: undefined }] } as unknown as Email
+
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
       test('expect error on invalid attachment id', () => {
         const invalidEmail = { ...email, attachments: [{ ...attachment, id: undefined }] } as unknown as Email
+
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
       test('expect error on invalid attachment size', () => {
         const invalidEmail = { ...email, attachments: [{ ...attachment, size: undefined }] } as unknown as Email
+
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
       test('expect error on invalid attachment type', () => {
         const invalidEmail = { ...email, attachments: [{ ...attachment, type: undefined }] } as unknown as Email
+
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
       test('expect timestamp when none provided', () => {
         const emailWithoutTimestamp = { ...email, timestamp: undefined } as unknown as Email
         const formattedEmail = formatEmail(emailWithoutTimestamp)
+
         expect(formattedEmail.timestamp).toBeDefined()
       })
     })
@@ -210,6 +230,7 @@ describe('events', () => {
       test('expect formatted email', () => {
         const emailWithInvalid = { ...outboundEmail, something: 'invalid' } as unknown as EmailOutbound
         const formattedEmail = formatEmailOutbound(emailWithInvalid, from)
+
         expect(formattedEmail).toEqual({
           attachments: [
             {
@@ -288,11 +309,13 @@ describe('events', () => {
 
       test('expect error on invalid to', () => {
         const invalidEmail = { ...outboundEmail, to: 'a string' } as unknown as EmailOutbound
+
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
       test('expect error on invalid cc', () => {
         const invalidEmail = { ...outboundEmail, cc: 'a string' } as unknown as EmailOutbound
+
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
@@ -308,31 +331,37 @@ describe('events', () => {
           cc: undefined,
           to: undefined,
         } as unknown as EmailOutbound
+
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
       test('expect error on invalid html', () => {
         const invalidEmail = { ...outboundEmail, html: undefined } as unknown as EmailOutbound
+
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
       test('expect error on invalid references', () => {
         const invalidEmail = { ...outboundEmail, references: 'a string' } as unknown as EmailOutbound
+
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
       test('expect error on invalid subject', () => {
         const invalidEmail = { ...outboundEmail, subject: undefined } as unknown as EmailOutbound
+
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
       test('expect error on invalid text', () => {
         const invalidEmail = { ...outboundEmail, text: undefined } as unknown as EmailOutbound
+
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
       test('expect error on invalid attachments', () => {
         const invalidEmail = { ...outboundEmail, attachments: 'a string' } as unknown as EmailOutbound
+
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
@@ -341,6 +370,7 @@ describe('events', () => {
           ...outboundEmail,
           attachments: [{ ...firstAttachment, content: undefined }],
         } as unknown as EmailOutbound
+
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
@@ -349,6 +379,7 @@ describe('events', () => {
           ...outboundEmail,
           attachments: [{ ...firstAttachment, contentDisposition: undefined }],
         } as unknown as EmailOutbound
+
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
@@ -357,6 +388,7 @@ describe('events', () => {
           ...outboundEmail,
           attachments: [{ ...firstAttachment, contentType: undefined }],
         } as unknown as EmailOutbound
+
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
@@ -365,6 +397,7 @@ describe('events', () => {
           ...outboundEmail,
           attachments: [{ ...firstAttachment, headerLines: undefined }],
         } as unknown as EmailOutbound
+
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
@@ -373,6 +406,7 @@ describe('events', () => {
           ...outboundEmail,
           attachments: [{ ...firstAttachment, headers: undefined }],
         } as unknown as EmailOutbound
+
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
@@ -381,6 +415,7 @@ describe('events', () => {
           ...outboundEmail,
           attachments: [{ ...firstAttachment, size: undefined }],
         } as unknown as EmailOutbound
+
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
     })
@@ -392,6 +427,7 @@ describe('events', () => {
 
       test('expect account from event', () => {
         const result = extractAccountFromEvent(event)
+
         expect(result).toEqual(account)
       })
 
@@ -402,11 +438,13 @@ describe('events', () => {
           isBase64Encoded: true,
         } as unknown as APIGatewayProxyEventV2
         const result = extractAccountFromEvent(tempEvent)
+
         expect(result).toEqual(account)
       })
 
       test('expect reject on invalid event', () => {
         const tempEvent = { ...event, body: JSON.stringify({}) } as unknown as APIGatewayProxyEventV2
+
         expect(() => extractAccountFromEvent(tempEvent)).toThrow()
       })
     })
@@ -414,6 +452,7 @@ describe('events', () => {
     describe('extractJsonPatchFromEvent', () => {
       test('expect preference from event', () => {
         const result = extractJsonPatchFromEvent(patchEventJson as unknown as APIGatewayProxyEventV2)
+
         expect(result).toEqual(jsonPatchOperations)
       })
     })
@@ -421,6 +460,7 @@ describe('events', () => {
     describe('extractJwtFromEvent', () => {
       test('expect payload successfully extracted', () => {
         const result = extractJwtFromEvent(getEventJson as unknown as APIGatewayProxyEventV2)
+
         expect(result).toEqual({
           aud: 'emails.dbowland.com',
           'cognito:username': 'admin',
@@ -438,12 +478,14 @@ describe('events', () => {
             authorization: 'Bearer invalid jwt',
           },
         } as unknown as APIGatewayProxyEventV2)
+
         expect(result).toBe(null)
       })
 
       test('expect null on missing header', () => {
         const event = { ...getEventJson, headers: {} } as unknown as APIGatewayProxyEventV2
         const result = extractJwtFromEvent(event)
+
         expect(result).toBe(null)
       })
     })
@@ -453,6 +495,7 @@ describe('events', () => {
 
       test('expect email from event', () => {
         const result = extractEmailFromEvent(event)
+
         expect(result).toEqual(email)
       })
 
@@ -463,11 +506,13 @@ describe('events', () => {
           isBase64Encoded: true,
         } as unknown as APIGatewayProxyEventV2
         const result = extractEmailFromEvent(tempEvent)
+
         expect(result).toEqual(email)
       })
 
       test('expect reject on invalid event', () => {
         const tempEvent = { ...event, body: JSON.stringify({}) } as unknown as APIGatewayProxyEventV2
+
         expect(() => extractEmailFromEvent(tempEvent)).toThrow()
       })
     })
@@ -477,6 +522,7 @@ describe('events', () => {
 
       test('expect email from event', () => {
         const result = extractEmailOutboundFromEvent(event, from)
+
         expect(result).toEqual(outboundEmail)
       })
 
@@ -487,11 +533,13 @@ describe('events', () => {
           isBase64Encoded: true,
         } as unknown as APIGatewayProxyEventV2
         const result = extractEmailOutboundFromEvent(tempEvent, from)
+
         expect(result).toEqual(outboundEmail)
       })
 
       test('expect reject on invalid event', () => {
         const tempEvent = { ...event, body: JSON.stringify({}) } as unknown as APIGatewayProxyEventV2
+
         expect(() => extractEmailOutboundFromEvent(tempEvent, from)).toThrow()
       })
     })
@@ -501,11 +549,13 @@ describe('events', () => {
 
       test('expect true returned when external and matching', () => {
         const result = validateUsernameInEvent(getEventJson as unknown as APIGatewayProxyEventV2, username)
+
         expect(result).toEqual(true)
       })
 
       test('expect false returned when external and not matching', () => {
         const result = validateUsernameInEvent(getEventJson as unknown as APIGatewayProxyEventV2, 'not-matching')
+
         expect(result).toEqual(false)
       })
 
@@ -517,6 +567,7 @@ describe('events', () => {
           },
         } as unknown as APIGatewayProxyEventV2
         const result = validateUsernameInEvent(event, username)
+
         expect(result).toEqual(true)
       })
     })

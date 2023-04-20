@@ -26,22 +26,26 @@ describe('put-email', () => {
         throw new Error('Bad request')
       })
       const result = await putEmailHandler(event)
+
       expect(result).toEqual(expect.objectContaining(status.BAD_REQUEST))
     })
 
     test('expect setReceivedById called with email', async () => {
       await putEmailHandler(event)
+
       expect(mocked(dynamodb).setReceivedById).toHaveBeenCalledWith(accountId, emailId, email)
     })
 
     test('expect INTERNAL_SERVER_ERROR on setReceivedById reject', async () => {
       mocked(dynamodb).setReceivedById.mockRejectedValueOnce(undefined)
       const result = await putEmailHandler(event)
+
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
 
     test('expect OK and body on success', async () => {
       const result = await putEmailHandler(event)
+
       expect(result).toEqual(expect.objectContaining({ ...status.OK, body: JSON.stringify(email) }))
     })
   })

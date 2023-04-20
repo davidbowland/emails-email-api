@@ -21,11 +21,13 @@ describe('get-all-accounts', () => {
     test('expect INTERNAL_SERVER_ERROR on getAccounts reject', async () => {
       mocked(dynamodb).getAccounts.mockRejectedValueOnce(undefined)
       const result = await getAllAccountsHandler(event)
+
       expect(result).toEqual(expect.objectContaining(status.INTERNAL_SERVER_ERROR))
     })
 
     test('expect OK and data', async () => {
       const result = await getAllAccountsHandler(event)
+
       expect(result).toEqual({ ...status.OK, body: JSON.stringify([{ data: account, id: accountId }]) })
     })
   })

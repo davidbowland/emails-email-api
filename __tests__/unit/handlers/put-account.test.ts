@@ -24,6 +24,7 @@ describe('put-account', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
       mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await putAccountHandler(event)
+
       expect(result).toEqual(status.FORBIDDEN)
     })
 
@@ -32,22 +33,26 @@ describe('put-account', () => {
         throw new Error('Bad request')
       })
       const result = await putAccountHandler(event)
+
       expect(result).toEqual(expect.objectContaining(status.BAD_REQUEST))
     })
 
     test('expect INTERNAL_SERVER_ERROR on setAccountById reject', async () => {
       mocked(dynamodb).setAccountById.mockRejectedValueOnce(undefined)
       const result = await putAccountHandler(event)
+
       expect(result).toEqual(expect.objectContaining(status.INTERNAL_SERVER_ERROR))
     })
 
     test('expect setAccountById called with account object', async () => {
       await putAccountHandler(event)
+
       expect(mocked(dynamodb).setAccountById).toHaveBeenCalledWith(accountId, account)
     })
 
     test('expect OK and body', async () => {
       const result = await putAccountHandler(event)
+
       expect(result).toEqual(expect.objectContaining({ ...status.OK, body: JSON.stringify(account) }))
     })
   })

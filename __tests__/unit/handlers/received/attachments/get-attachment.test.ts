@@ -28,6 +28,7 @@ describe('get-attachment', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
       mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await getAttachmentHandler(event)
+
       expect(result).toEqual(status.FORBIDDEN)
     })
 
@@ -36,23 +37,27 @@ describe('get-attachment', () => {
         throw new Error('fnord')
       })
       const result = await getAttachmentHandler(event)
+
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
 
     test('expect NOT_FOUND on getReceivedById reject', async () => {
       mocked(dynamodb).getReceivedById.mockRejectedValueOnce(undefined)
       const result = await getAttachmentHandler(event)
+
       expect(result).toEqual(status.NOT_FOUND)
     })
 
     test('expect INTERNAL_SERVER_ERROR when getSignedS3Url rejects', async () => {
       mocked(s3).getSignedS3Url.mockRejectedValueOnce(undefined)
       const result = await getAttachmentHandler(event)
+
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
 
     test('expect OK when index exists', async () => {
       const result = await getAttachmentHandler(event)
+
       expect(mocked(s3).getSignedS3Url).toHaveBeenCalledWith(
         'received/account/7yh8g-7ytguy-98ui8u-5efka-87y87y/9ijh-6tfg-dfsf3-sdfio-johac'
       )

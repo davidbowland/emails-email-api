@@ -6,6 +6,7 @@ describe('parser', () => {
   describe('convertParsedContentsToEmail', () => {
     test('expect contents converted correctly', async () => {
       const result = await convertParsedContentsToEmail(emailId, parsedContents)
+
       expect(result).toEqual({
         attachments: [
           { filename: 'alexa-screenshot.png', id: 'f_kx2qxtrl0', size: 25277, type: 'attachment' },
@@ -65,6 +66,7 @@ describe('parser', () => {
         textAsHtml: false,
       } as unknown as ParsedMail
       const result = await convertParsedContentsToEmail(emailId, tempContents)
+
       expect(result.bodyHtml).toEqual('')
       expect(result.bodyText).toEqual('')
       expect(result.fromAddress).toEqual({ html: '', text: '', value: [{ address: '', name: '' }] })

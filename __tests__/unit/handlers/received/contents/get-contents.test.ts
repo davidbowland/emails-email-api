@@ -30,6 +30,7 @@ describe('get-contents', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
       mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await getContentsHandler(event)
+
       expect(result).toEqual(status.FORBIDDEN)
     })
 
@@ -38,29 +39,34 @@ describe('get-contents', () => {
         throw new Error('fnord')
       })
       const result = await getContentsHandler(event)
+
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
 
     test('expect NOT_FOUND on getReceivedById reject', async () => {
       mocked(dynamodb).getReceivedById.mockRejectedValueOnce(undefined)
       const result = await getContentsHandler(event)
+
       expect(result).toEqual(expect.objectContaining(status.NOT_FOUND))
     })
 
     test('expect NOT_FOUND when getS3Object rejects', async () => {
       mocked(s3).getS3Object.mockRejectedValueOnce(undefined)
       const result = await getContentsHandler(event)
+
       expect(result).toEqual(status.NOT_FOUND)
     })
 
     test('expect INTERNAL_SERVER_ERROR when simpleParser rejects', async () => {
       mocked(mailparser).simpleParser.mockRejectedValueOnce(undefined)
       const result = await getContentsHandler(event)
+
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
 
     test('expect OK when index exists', async () => {
       const result = await getContentsHandler(event)
+
       expect(mocked(s3.getS3Object)).toHaveBeenCalledWith('received/account/7yh8g-7ytguy-98ui8u-5efka-87y87y')
       expect(result).toEqual({
         ...status.OK,

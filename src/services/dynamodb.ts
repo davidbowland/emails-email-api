@@ -1,104 +1,112 @@
-import { DynamoDB } from 'aws-sdk'
+import {
+  DeleteItemCommand,
+  DeleteItemOutput,
+  DynamoDBClient,
+  GetItemCommand,
+  PutItemCommand,
+  PutItemOutput,
+  QueryCommand,
+  ScanCommand,
+  ScanOutput,
+} from '@aws-sdk/client-dynamodb'
 
 import { Account, AccountBatch, Email, EmailBatch } from '../types'
 import { dynamodbAccountsTableName, dynamodbReceivedTableName, dynamodbSentTableName } from '../config'
 import { xrayCapture } from '../utils/logging'
 
-const dynamodb = xrayCapture(new DynamoDB({ apiVersion: '2012-08-10' }))
+const dynamodb = xrayCapture(new DynamoDBClient({ apiVersion: '2012-08-10' }))
 
 /* Accounts */
 
-export const deleteAccountById = (account: string): Promise<DynamoDB.Types.DeleteItemOutput> =>
-  dynamodb
-    .deleteItem({
-      Key: {
-        Account: {
-          S: `${account}`,
-        },
+export const deleteAccountById = async (account: string): Promise<DeleteItemOutput> => {
+  const command = new DeleteItemCommand({
+    Key: {
+      Account: {
+        S: `${account}`,
       },
-      TableName: dynamodbAccountsTableName,
-    })
-    .promise()
+    },
+    TableName: dynamodbAccountsTableName,
+  })
+  return dynamodb.send(command)
+}
 
-export const getAccountById = (account: string): Promise<Account> =>
-  dynamodb
-    .getItem({
-      Key: {
-        Account: {
-          S: `${account}`,
-        },
+export const getAccountById = async (account: string): Promise<Account> => {
+  const command = new GetItemCommand({
+    Key: {
+      Account: {
+        S: `${account}`,
       },
-      TableName: dynamodbAccountsTableName,
-    })
-    .promise()
-    .then((response: any) => response.Item.Data.S)
-    .then(JSON.parse)
+    },
+    TableName: dynamodbAccountsTableName,
+  })
+  const response = await dynamodb.send(command)
+  return JSON.parse(response.Item.Data.S)
+}
 
-const getAccountsFromScan = (response: DynamoDB.Types.ScanOutput): AccountBatch[] =>
+const getAccountsFromScan = (response: ScanOutput): AccountBatch[] =>
   response.Items?.reduce(
     (result, item) => [...result, { data: JSON.parse(item.Data.S as string), id: item.Account.S as string }],
     [] as AccountBatch[]
   ) as AccountBatch[]
 
-export const getAccounts = (): Promise<AccountBatch[]> =>
-  dynamodb
-    .scan({
-      AttributesToGet: ['Data', 'Account'],
-      TableName: dynamodbAccountsTableName,
-    })
-    .promise()
-    .then((response: any) => getAccountsFromScan(response))
+export const getAccounts = async (): Promise<AccountBatch[]> => {
+  const command = new ScanCommand({
+    AttributesToGet: ['Data', 'Account'],
+    TableName: dynamodbAccountsTableName,
+  })
+  const response = await dynamodb.send(command)
+  return getAccountsFromScan(response)
+}
 
-export const setAccountById = (account: string, data: Account): Promise<DynamoDB.Types.PutItemOutput> =>
-  dynamodb
-    .putItem({
-      Item: {
-        Account: {
-          S: `${account}`,
-        },
-        Data: {
-          S: JSON.stringify(data),
-        },
+export const setAccountById = async (account: string, data: Account): Promise<PutItemOutput> => {
+  const command = new PutItemCommand({
+    Item: {
+      Account: {
+        S: `${account}`,
       },
-      TableName: dynamodbAccountsTableName,
-    })
-    .promise()
+      Data: {
+        S: JSON.stringify(data),
+      },
+    },
+    TableName: dynamodbAccountsTableName,
+  })
+  return dynamodb.send(command)
+}
 
 /* Received */
 
-export const deleteReceivedById = (account: string, id: string): Promise<DynamoDB.Types.DeleteItemOutput> =>
-  dynamodb
-    .deleteItem({
-      Key: {
-        Account: {
-          S: `${account}`,
-        },
-        MessageID: {
-          S: `${id}`,
-        },
+export const deleteReceivedById = async (account: string, id: string): Promise<DeleteItemOutput> => {
+  const command = new DeleteItemCommand({
+    Key: {
+      Account: {
+        S: `${account}`,
       },
-      TableName: dynamodbReceivedTableName,
-    })
-    .promise()
-
-export const getReceivedById = (account: string, id: string): Promise<Email> =>
-  dynamodb
-    .getItem({
-      Key: {
-        Account: {
-          S: `${account}`,
-        },
-        MessageID: {
-          S: `${id}`,
-        },
+      MessageID: {
+        S: `${id}`,
       },
-      TableName: dynamodbReceivedTableName,
-    })
-    .promise()
-    .then((response: any) => response.Item.Data.S)
-    .then(JSON.parse)
+    },
+    TableName: dynamodbReceivedTableName,
+  })
+  return dynamodb.send(command)
+}
 
-const getReceivedFromScan = (response: DynamoDB.Types.ScanOutput): EmailBatch[] =>
+export const getReceivedById = async (account: string, id: string): Promise<Email> => {
+  const command = new GetItemCommand({
+    Key: {
+      Account: {
+        S: `${account}`,
+      },
+      MessageID: {
+        S: `${id}`,
+      },
+    },
+    TableName: dynamodbReceivedTableName,
+  })
+  const response = await dynamodb.send(command)
+  return JSON.parse(response.Item.Data.S)
+}
+
+const getReceivedFromScan = (response: ScanOutput): EmailBatch[] =>
   response.Items?.reduce(
     (result, item) => [
       ...result,
@@ -107,75 +115,74 @@ const getReceivedFromScan = (response: DynamoDB.Types.ScanOutput): EmailBatch[] 
     [] as EmailBatch[]
   ) as EmailBatch[]
 
-export const getReceived = (account: string): Promise<EmailBatch[]> =>
-  dynamodb
-    .query({
-      ExpressionAttributeNames: { '#d': 'Data' },
-      ExpressionAttributeValues: {
-        ':v1': {
-          S: `${account}`,
-        },
+export const getReceived = async (account: string): Promise<EmailBatch[]> => {
+  const command = new QueryCommand({
+    ExpressionAttributeNames: { '#d': 'Data' },
+    ExpressionAttributeValues: {
+      ':v1': {
+        S: `${account}`,
       },
-      KeyConditionExpression: 'Account = :v1',
-      ProjectionExpression: 'Account,MessageID,#d',
-      TableName: dynamodbReceivedTableName,
-    })
-    .promise()
-    .then((response: any) => getReceivedFromScan(response))
+    },
+    KeyConditionExpression: 'Account = :v1',
+    ProjectionExpression: 'Account,MessageID,#d',
+    TableName: dynamodbReceivedTableName,
+  })
+  const response = await dynamodb.send(command)
+  return getReceivedFromScan(response)
+}
 
-export const setReceivedById = (account: string, id: string, data: Email): Promise<DynamoDB.Types.PutItemOutput> =>
-  dynamodb
-    .putItem({
-      Item: {
-        Account: {
-          S: `${account}`,
-        },
-        Data: {
-          S: JSON.stringify(data),
-        },
-        MessageID: {
-          S: `${id}`,
-        },
+export const setReceivedById = async (account: string, id: string, data: Email): Promise<PutItemOutput> => {
+  const command = new PutItemCommand({
+    Item: {
+      Account: {
+        S: `${account}`,
       },
-      TableName: dynamodbReceivedTableName,
-    })
-    .promise()
+      Data: {
+        S: JSON.stringify(data),
+      },
+      MessageID: {
+        S: `${id}`,
+      },
+    },
+    TableName: dynamodbReceivedTableName,
+  })
+  return dynamodb.send(command)
+}
 
 /* Sent */
 
-export const deleteSentById = (account: string, id: string): Promise<DynamoDB.Types.DeleteItemOutput> =>
-  dynamodb
-    .deleteItem({
-      Key: {
-        Account: {
-          S: `${account}`,
-        },
-        MessageID: {
-          S: `${id}`,
-        },
+export const deleteSentById = async (account: string, id: string): Promise<DeleteItemOutput> => {
+  const command = new DeleteItemCommand({
+    Key: {
+      Account: {
+        S: `${account}`,
       },
-      TableName: dynamodbSentTableName,
-    })
-    .promise()
-
-export const getSentById = (account: string, id: string): Promise<Email> =>
-  dynamodb
-    .getItem({
-      Key: {
-        Account: {
-          S: `${account}`,
-        },
-        MessageID: {
-          S: `${id}`,
-        },
+      MessageID: {
+        S: `${id}`,
       },
-      TableName: dynamodbSentTableName,
-    })
-    .promise()
-    .then((response: any) => response.Item.Data.S)
-    .then(JSON.parse)
+    },
+    TableName: dynamodbSentTableName,
+  })
+  return dynamodb.send(command)
+}
 
-const getSentFromScan = (response: DynamoDB.Types.ScanOutput): EmailBatch[] =>
+export const getSentById = async (account: string, id: string): Promise<Email> => {
+  const command = new GetItemCommand({
+    Key: {
+      Account: {
+        S: `${account}`,
+      },
+      MessageID: {
+        S: `${id}`,
+      },
+    },
+    TableName: dynamodbSentTableName,
+  })
+  const response = await dynamodb.send(command)
+  return JSON.parse(response.Item.Data.S)
+}
+
+const getSentFromScan = (response: ScanOutput): EmailBatch[] =>
   response.Items?.reduce(
     (result, item) => [
       ...result,
@@ -184,36 +191,36 @@ const getSentFromScan = (response: DynamoDB.Types.ScanOutput): EmailBatch[] =>
     [] as EmailBatch[]
   ) as EmailBatch[]
 
-export const getSent = (account: string): Promise<EmailBatch[]> =>
-  dynamodb
-    .query({
-      ExpressionAttributeNames: { '#d': 'Data' },
-      ExpressionAttributeValues: {
-        ':v1': {
-          S: `${account}`,
-        },
+export const getSent = async (account: string): Promise<EmailBatch[]> => {
+  const command = new QueryCommand({
+    ExpressionAttributeNames: { '#d': 'Data' },
+    ExpressionAttributeValues: {
+      ':v1': {
+        S: `${account}`,
       },
-      KeyConditionExpression: 'Account = :v1',
-      ProjectionExpression: 'Account,MessageID,#d',
-      TableName: dynamodbSentTableName,
-    })
-    .promise()
-    .then((response: any) => getSentFromScan(response))
+    },
+    KeyConditionExpression: 'Account = :v1',
+    ProjectionExpression: 'Account,MessageID,#d',
+    TableName: dynamodbSentTableName,
+  })
+  const response = await dynamodb.send(command)
+  return getSentFromScan(response)
+}
 
-export const setSentById = (account: string, id: string, data: Email): Promise<DynamoDB.Types.PutItemOutput> =>
-  dynamodb
-    .putItem({
-      Item: {
-        Account: {
-          S: `${account}`,
-        },
-        Data: {
-          S: JSON.stringify(data),
-        },
-        MessageID: {
-          S: `${id}`,
-        },
+export const setSentById = async (account: string, id: string, data: Email): Promise<PutItemOutput> => {
+  const command = new PutItemCommand({
+    Item: {
+      Account: {
+        S: `${account}`,
       },
-      TableName: dynamodbSentTableName,
-    })
-    .promise()
+      Data: {
+        S: JSON.stringify(data),
+      },
+      MessageID: {
+        S: `${id}`,
+      },
+    },
+    TableName: dynamodbSentTableName,
+  })
+  return dynamodb.send(command)
+}

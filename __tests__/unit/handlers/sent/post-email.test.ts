@@ -32,6 +32,7 @@ describe('post-email', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
       mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await postEmailHandler(event)
+
       expect(result).toEqual(status.FORBIDDEN)
     })
 
@@ -40,12 +41,14 @@ describe('post-email', () => {
         throw new Error('fnord')
       })
       const result = await postEmailHandler(event)
+
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
 
     test('expect NOT_FOUND on getAccountById reject', async () => {
       mocked(dynamodb).getAccountById.mockRejectedValueOnce(undefined)
       const result = await postEmailHandler(event)
+
       expect(result).toEqual(status.NOT_FOUND)
     })
 
@@ -54,17 +57,20 @@ describe('post-email', () => {
         throw new Error('fnord')
       })
       const result = await postEmailHandler(event)
+
       expect(result.statusCode).toEqual(status.BAD_REQUEST.statusCode)
     })
 
     test('expect INTERNAL_SERVER_ERROR on sendEmail reject', async () => {
       mocked(queue).sendEmail.mockRejectedValueOnce(undefined)
       const result = await postEmailHandler(event)
+
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
 
     test('expect correct calls for saving contents', async () => {
       await postEmailHandler(event)
+
       expect(mocked(s3).putS3Object).toHaveBeenCalledWith(
         'sent/account/7yh8g-7ytguy-98ui8u-5efka-87y87y',
         JSON.stringify(emailContents)
@@ -89,6 +95,7 @@ describe('post-email', () => {
 
     test('expect OK when index exists', async () => {
       const result = await postEmailHandler(event)
+
       expect(result).toEqual({ ...status.OK, body: JSON.stringify({ ...email, accountId, id: emailId }) })
     })
   })

@@ -3,8 +3,6 @@ export { AxiosResponse } from 'axios'
 export { ParsedMail } from 'mailparser'
 export { Operation as PatchOperation } from 'fast-json-patch'
 
-import { Metadata } from 'aws-sdk/clients/s3'
-
 export interface StringObject {
   [key: string]: string
 }
@@ -25,8 +23,8 @@ export interface AttachmentCommon {
 }
 
 export interface AttachmentContents {
-  body: Buffer | string
-  metadata: Metadata
+  body: Buffer
+  metadata?: Record<string, string>
 }
 
 export interface Account {

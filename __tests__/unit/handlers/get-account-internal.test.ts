@@ -29,6 +29,7 @@ describe('get-account-internal', () => {
       mocked(dynamodb).getAccountById.mockRejectedValueOnce(undefined)
       mocked(dynamodb).getAccountById.mockResolvedValueOnce(adminAccount)
       const result = await getAccountInternalHandler(event)
+
       expect(result).toEqual({ ...status.OK, body: JSON.stringify({ ...adminAccount, id: accountId }) })
     })
 
@@ -36,11 +37,13 @@ describe('get-account-internal', () => {
       mocked(dynamodb).getAccountById.mockRejectedValueOnce(undefined)
       mocked(dynamodb).getAccountById.mockRejectedValueOnce(undefined)
       const result = await getAccountInternalHandler(event)
+
       expect(result).toEqual(expect.objectContaining(status.INTERNAL_SERVER_ERROR))
     })
 
     test('expect OK when accountId exists', async () => {
       const result = await getAccountInternalHandler(event)
+
       expect(result).toEqual({ ...status.OK, body: JSON.stringify({ ...account, id: accountId }) })
     })
   })

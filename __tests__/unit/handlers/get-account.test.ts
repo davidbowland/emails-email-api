@@ -24,17 +24,20 @@ describe('get-account', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
       mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await getAccountHandler(event)
+
       expect(result).toEqual(status.FORBIDDEN)
     })
 
     test('expect NOT_FOUND on getAccountById reject', async () => {
       mocked(dynamodb).getAccountById.mockRejectedValueOnce(undefined)
       const result = await getAccountHandler(event)
+
       expect(result).toEqual(expect.objectContaining(status.NOT_FOUND))
     })
 
     test('expect OK when accountId exists', async () => {
       const result = await getAccountHandler(event)
+
       expect(result).toEqual({ ...status.OK, body: JSON.stringify({ ...account, id: accountId }) })
     })
   })

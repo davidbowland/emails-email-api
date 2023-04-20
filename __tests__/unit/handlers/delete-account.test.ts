@@ -24,23 +24,27 @@ describe('delete-account', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
       mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await deleteAccountHandler(event)
+
       expect(result).toEqual(status.FORBIDDEN)
     })
 
     test('expect INTERNAL_SERVER_ERROR on deleteAccountById reject', async () => {
       mocked(dynamodb).deleteAccountById.mockRejectedValueOnce(undefined)
       const result = await deleteAccountHandler(event)
+
       expect(result).toEqual(expect.objectContaining(status.INTERNAL_SERVER_ERROR))
     })
 
     test('expect OK when accountId exists', async () => {
       const result = await deleteAccountHandler(event)
+
       expect(result).toEqual({ ...status.OK, body: JSON.stringify(account) })
     })
 
     test('expect NO_CONTENT when accountId does not exist', async () => {
       mocked(dynamodb).getAccountById.mockRejectedValueOnce(undefined)
       const result = await deleteAccountHandler(event)
+
       expect(result).toEqual(expect.objectContaining(status.NO_CONTENT))
     })
   })

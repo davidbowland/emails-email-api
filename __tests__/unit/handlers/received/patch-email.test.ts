@@ -26,6 +26,7 @@ describe('patch-email', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
       mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await patchEmailHandler(event)
+
       expect(result).toEqual(status.FORBIDDEN)
     })
 
@@ -34,6 +35,7 @@ describe('patch-email', () => {
         throw new Error('Bad request')
       })
       const result = await patchEmailHandler(event)
+
       expect(result).toEqual(expect.objectContaining(status.BAD_REQUEST))
     })
 
@@ -42,6 +44,7 @@ describe('patch-email', () => {
         { op: 'replace', path: '/viewed' },
       ] as unknown[] as PatchOperation[])
       const result = await patchEmailHandler(event)
+
       expect(result.statusCode).toEqual(status.BAD_REQUEST.statusCode)
     })
 
@@ -50,28 +53,33 @@ describe('patch-email', () => {
         { op: 'replace', path: '/timestamp', value: 876567656 },
       ] as unknown[] as PatchOperation[])
       const result = await patchEmailHandler(event)
+
       expect(result).toEqual(status.FORBIDDEN)
     })
 
     test('expect NOT_FOUND on getReceivedById reject', async () => {
       mocked(dynamodb).getReceivedById.mockRejectedValueOnce(undefined)
       const result = await patchEmailHandler(event)
+
       expect(result).toEqual(status.NOT_FOUND)
     })
 
     test('expect INTERNAL_SERVER_ERROR on setReceivedById reject', async () => {
       mocked(dynamodb).setReceivedById.mockRejectedValueOnce(undefined)
       const result = await patchEmailHandler(event)
+
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
 
     test('expect setReceivedById called with updated object', async () => {
       await patchEmailHandler(event)
+
       expect(mocked(dynamodb).setReceivedById).toHaveBeenCalledWith(accountId, emailId, expectedResult)
     })
 
     test('expect OK and body', async () => {
       const result = await patchEmailHandler(event)
+
       expect(result).toEqual(expect.objectContaining({ ...status.OK, body: JSON.stringify(expectedResult) }))
     })
   })
