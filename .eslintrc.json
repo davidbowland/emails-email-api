@@ -15,6 +15,7 @@
     "@typescript-eslint/no-explicit-any": ["off"],
     "indent": ["error", 2],
     "linebreak-style": ["error", "unix"],
+    "no-negated-condition": ["error"],
     "quotes": ["error", "single", { "avoidEscape": true }],
     "semi": ["error", "never"],
     "sort-imports": ["error", { "allowSeparatedGroups": true, "ignoreCase": true }],
