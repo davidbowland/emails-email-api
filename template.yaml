@@ -135,8 +135,7 @@ Resources:
   DeleteAccountFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/delete-account.deleteAccountHandler
-      CodeUri: './dist'
+      Handler: src/handlers/delete-account.deleteAccountHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -170,6 +169,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 10
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/delete-account.ts
 
   DeleteAccountLogGroup:
     Type: AWS::Logs::LogGroup
@@ -197,8 +204,7 @@ Resources:
   GetAccountInternalFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/get-account-internal.getAccountInternalHandler
-      CodeUri: './dist'
+      Handler: src/handlers/get-account-internal.getAccountInternalHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -226,6 +232,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 10
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/get-account-internal.ts
 
   GetAccountInternalLogGroup:
     Type: AWS::Logs::LogGroup
@@ -253,8 +267,7 @@ Resources:
   GetAccountFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/get-account.getAccountHandler
-      CodeUri: './dist'
+      Handler: src/handlers/get-account.getAccountHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -288,6 +301,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 10
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/get-account.ts
 
   GetAccountLogGroup:
     Type: AWS::Logs::LogGroup
@@ -315,8 +336,7 @@ Resources:
   GetAllAccountsFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/get-all-accounts.getAllAccountsHandler
-      CodeUri: './dist'
+      Handler: src/handlers/get-all-accounts.getAllAccountsHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -344,6 +364,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 10
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/get-all-accounts.ts
 
   GetAllAccountsLogGroup:
     Type: AWS::Logs::LogGroup
@@ -371,8 +399,7 @@ Resources:
   PatchAccountFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/patch-account.patchAccountHandler
-      CodeUri: './dist'
+      Handler: src/handlers/patch-account.patchAccountHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -406,6 +433,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 10
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/patch-account.ts
 
   PatchAccountLogGroup:
     Type: AWS::Logs::LogGroup
@@ -433,8 +468,7 @@ Resources:
   PutAccountFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/put-account.putAccountHandler
-      CodeUri: './dist'
+      Handler: src/handlers/put-account.putAccountHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -468,6 +502,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 10
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/put-account.ts
 
   PutAccountLogGroup:
     Type: AWS::Logs::LogGroup
@@ -497,8 +539,7 @@ Resources:
   DeleteReceivedEmailFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/received/delete-email.deleteEmailHandler
-      CodeUri: './dist'
+      Handler: src/handlers/received/delete-email.deleteEmailHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -535,6 +576,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 20
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/received/delete-email.ts
 
   DeleteReceivedEmailLogGroup:
     Type: AWS::Logs::LogGroup
@@ -562,8 +611,7 @@ Resources:
   GetAllReceivedEmailsFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/received/get-all-emails.getAllEmailsHandler
-      CodeUri: './dist'
+      Handler: src/handlers/received/get-all-emails.getAllEmailsHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -597,6 +645,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 20
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/received/get-all-emails.ts
 
   GetAllReceivedEmailsLogGroup:
     Type: AWS::Logs::LogGroup
@@ -624,8 +680,7 @@ Resources:
   GetReceivedEmailFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/received/get-email.getEmailHandler
-      CodeUri: './dist'
+      Handler: src/handlers/received/get-email.getEmailHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -659,6 +714,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 10
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/received/get-email.ts
 
   GetReceivedEmailLogGroup:
     Type: AWS::Logs::LogGroup
@@ -686,8 +749,7 @@ Resources:
   PatchReceivedEmailFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/received/patch-email.patchEmailHandler
-      CodeUri: './dist'
+      Handler: src/handlers/received/patch-email.patchEmailHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -721,6 +783,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 10
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/received/patch-email.ts
 
   PatchReceivedEmailLogGroup:
     Type: AWS::Logs::LogGroup
@@ -748,8 +818,7 @@ Resources:
   PutReceivedEmailFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/received/put-email.putEmailHandler
-      CodeUri: './dist'
+      Handler: src/handlers/received/put-email.putEmailHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -777,6 +846,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 30
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/received/put-email.ts
 
   PutReceivedEmailLogGroup:
     Type: AWS::Logs::LogGroup
@@ -806,8 +883,7 @@ Resources:
   GetReceivedAttachmentFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/received/attachments/get-attachment.getAttachmentHandler
-      CodeUri: './dist'
+      Handler: src/handlers/received/attachments/get-attachment.getAttachmentHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -844,6 +920,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 10
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/received/attachments/get-attachment.ts
 
   GetReceivedAttachmentLogGroup:
     Type: AWS::Logs::LogGroup
@@ -873,8 +957,7 @@ Resources:
   GetReceivedContentsFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/received/contents/get-contents.getContentsHandler
-      CodeUri: './dist'
+      Handler: src/handlers/received/contents/get-contents.getContentsHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -911,6 +994,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 10
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/received/contents/get-contents.ts
 
   GetReceivedContentsLogGroup:
     Type: AWS::Logs::LogGroup
@@ -940,8 +1031,7 @@ Resources:
   DeleteSentEmailFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/sent/delete-email.deleteEmailHandler
-      CodeUri: './dist'
+      Handler: src/handlers/sent/delete-email.deleteEmailHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -978,6 +1068,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 20
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/sent/delete-email.ts
 
   DeleteSentEmailLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1005,8 +1103,7 @@ Resources:
   GetAllSentEmailsFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/sent/get-all-emails.getAllEmailsHandler
-      CodeUri: './dist'
+      Handler: src/handlers/sent/get-all-emails.getAllEmailsHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -1040,6 +1137,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 20
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/sent/get-all-emails.ts
 
   GetAllSentEmailsLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1067,8 +1172,7 @@ Resources:
   GetSentEmailFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/sent/get-email.getEmailHandler
-      CodeUri: './dist'
+      Handler: src/handlers/sent/get-email.getEmailHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -1102,6 +1206,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 10
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/sent/get-email.ts
 
   GetSentEmailLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1129,8 +1241,7 @@ Resources:
   PatchSentEmailFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/sent/patch-email.patchEmailHandler
-      CodeUri: './dist'
+      Handler: src/handlers/sent/patch-email.patchEmailHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -1164,6 +1275,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 10
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/sent/patch-email.ts
 
   PatchSentEmailLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1191,8 +1310,7 @@ Resources:
   PostSentEmailFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/sent/post-email.postEmailHandler
-      CodeUri: './dist'
+      Handler: src/handlers/sent/post-email.postEmailHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -1235,6 +1353,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 30
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/sent/post-email.ts
 
   PostSentEmailLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1264,8 +1390,7 @@ Resources:
   GetSentAttachmentFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/sent/attachments/get-attachment.getAttachmentHandler
-      CodeUri: './dist'
+      Handler: src/handlers/sent/attachments/get-attachment.getAttachmentHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -1302,6 +1427,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 10
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/sent/attachments/get-attachment.ts
 
   GetSentAttachmentLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1329,8 +1462,7 @@ Resources:
   PostSentAttachmentFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/sent/attachments/post-attachment.postAttachmentHandler
-      CodeUri: './dist'
+      Handler: src/handlers/sent/attachments/post-attachment.postAttachmentHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -1365,6 +1497,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 10
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/sent/attachments/post-attachment.ts
 
   PostSentAttachmentLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1394,8 +1534,7 @@ Resources:
   GetSentContentsFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/sent/contents/get-contents.getContentsHandler
-      CodeUri: './dist'
+      Handler: src/handlers/sent/contents/get-contents.getContentsHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
@@ -1432,6 +1571,14 @@ Resources:
         'environment': !Ref Environment
       Timeout: 10
       Tracing: Active
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/sent/contents/get-contents.ts
 
   GetSentContentsLogGroup:
     Type: AWS::Logs::LogGroup
