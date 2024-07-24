@@ -1,6 +1,6 @@
 import { setupServer } from 'msw/node'
 
-export { rest } from 'msw'
+export { http, HttpResponse } from 'msw'
 
 export const server = setupServer()
 

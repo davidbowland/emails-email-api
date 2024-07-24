@@ -1,6 +1,6 @@
 import { emailId, outboundEmail } from '../__mocks__'
+import { http, HttpResponse, server } from '@setup-server'
 import { queueApiKey, queueApiUrl } from '@config'
-import { rest, server } from '@setup-server'
 import { sendEmail } from '@services/queue'
 
 jest.mock('@utils/logging')
@@ -11,13 +11,13 @@ describe('queue', () => {
 
     beforeAll(() => {
       server.use(
-        rest.post(`${queueApiUrl}/emails`, async (req, res, ctx) => {
-          if (queueApiKey != req.headers.get('x-api-key')) {
-            return res(ctx.status(403))
+        http.post(`${queueApiUrl}/emails`, async ({ request }) => {
+          if (queueApiKey != request.headers.get('x-api-key')) {
+            return new HttpResponse(JSON.stringify({ error: 'Invalid API key' }), { status: 403 })
           }
 
-          const body = postEndpoint(await req.json())
-          return res(body ? ctx.json(body) : ctx.status(400))
+          const body = postEndpoint(await request.json())
+          return body ? HttpResponse.json(body) : new HttpResponse(null, { status: 400 })
         })
       )
     })
