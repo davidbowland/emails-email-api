@@ -479,14 +479,14 @@ describe('events', () => {
           },
         } as unknown as APIGatewayProxyEventV2)
 
-        expect(result).toBe(null)
+        expect(result).toBeNull()
       })
 
       test('expect null on missing header', () => {
         const event = { ...getEventJson, headers: {} } as unknown as APIGatewayProxyEventV2
         const result = extractJwtFromEvent(event)
 
-        expect(result).toBe(null)
+        expect(result).toBeNull()
       })
     })
 
