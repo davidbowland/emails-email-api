@@ -36,7 +36,7 @@ export const convertParsedContentsToEmail = (emailId: string, parsedMail: Parsed
   headers: parsedMail.headers as unknown as EmailHeaders,
   id: parsedMail.messageId ?? emailId,
   inReplyTo: parsedMail.inReplyTo,
-  references: typeof parsedMail.references === 'string' ? [parsedMail.references] : parsedMail.references ?? [],
+  references: typeof parsedMail.references === 'string' ? [parsedMail.references] : (parsedMail.references ?? []),
   replyToAddress: (parsedMail.replyTo ?? emptyAddressReplyTo) as EmailAddressReplyTo,
   subject: parsedMail.subject,
   toAddress: parsedMail.to as unknown as EmailAddressParsed,

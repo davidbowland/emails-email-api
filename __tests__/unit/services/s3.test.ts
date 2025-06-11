@@ -1,5 +1,5 @@
-import { copyS3Object, deleteS3Object, getS3Object, getSignedS3Url, putS3Object, uploadS3Object } from '@services/s3'
 import { emailBucket } from '@config'
+import { copyS3Object, deleteS3Object, getS3Object, getSignedS3Url, putS3Object, uploadS3Object } from '@services/s3'
 
 const mockSend = jest.fn()
 jest.mock('@aws-sdk/client-s3', () => ({
@@ -137,7 +137,7 @@ describe('S3', () => {
           Bucket: emailBucket,
           Key: key,
         },
-        { expiresIn: 300 }
+        { expiresIn: 300 },
       )
     })
 

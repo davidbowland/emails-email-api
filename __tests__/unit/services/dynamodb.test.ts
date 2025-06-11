@@ -32,7 +32,7 @@ jest.mock('@utils/logging', () => ({
 describe('dynamodb', () => {
   describe('accounts', () => {
     describe('deleteAccountById', () => {
-      test('expect accountId passed to delete', async () => {
+      it('should pass accountId to delete', async () => {
         await deleteAccountById(accountId)
 
         expect(mockSend).toHaveBeenCalledWith({
@@ -135,7 +135,7 @@ describe('dynamodb', () => {
         mockSend.mockResolvedValue({ Item: { Data: { S: JSON.stringify(account) } } })
       })
 
-      test('expect accountId and emailId passed to get', async () => {
+      it('should pass accountId and emailId to get', async () => {
         await getReceivedById(accountId, emailId)
 
         expect(mockSend).toHaveBeenCalledWith({
@@ -151,7 +151,7 @@ describe('dynamodb', () => {
         })
       })
 
-      test('expect data parsed and returned', async () => {
+      it('should parse and return data', async () => {
         const result = await getReceivedById(accountId, emailId)
 
         expect(result).toEqual(account)

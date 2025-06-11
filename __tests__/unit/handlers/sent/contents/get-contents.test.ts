@@ -1,12 +1,10 @@
-import { mocked } from 'jest-mock'
-
-import * as dynamodb from '@services/dynamodb'
-import * as events from '@utils/events'
-import * as s3 from '@services/s3'
 import { email, parsedContents } from '../../../__mocks__'
-import { APIGatewayProxyEventV2 } from '@types'
 import eventJson from '@events/sent/contents/get-contents.json'
 import { getContentsHandler } from '@handlers/sent/contents/get-contents'
+import * as dynamodb from '@services/dynamodb'
+import * as s3 from '@services/s3'
+import { APIGatewayProxyEventV2 } from '@types'
+import * as events from '@utils/events'
 import status from '@utils/status'
 
 jest.mock('@services/dynamodb')
@@ -18,21 +16,21 @@ describe('get-contents', () => {
   const event = eventJson as unknown as APIGatewayProxyEventV2
 
   beforeAll(() => {
-    mocked(dynamodb).getSentById.mockResolvedValue(email)
-    mocked(events).validateUsernameInEvent.mockReturnValue(true)
-    mocked(s3).getS3Object.mockResolvedValue({ body: JSON.stringify(parsedContents), metadata: {} })
+    jest.mocked(dynamodb).getSentById.mockResolvedValue(email)
+    jest.mocked(events).validateUsernameInEvent.mockReturnValue(true)
+    jest.mocked(s3).getS3Object.mockResolvedValue({ body: JSON.stringify(parsedContents), metadata: {} })
   })
 
   describe('getAttachmentHandler', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
-      mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
+      jest.mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await getContentsHandler(event)
 
       expect(result).toEqual(status.FORBIDDEN)
     })
 
     test('expect INTERNAL_SERVER_ERROR when validateUsernameInEvent throws', async () => {
-      mocked(events).validateUsernameInEvent.mockImplementationOnce(() => {
+      jest.mocked(events).validateUsernameInEvent.mockImplementationOnce(() => {
         throw new Error('fnord')
       })
       const result = await getContentsHandler(event)
@@ -41,14 +39,14 @@ describe('get-contents', () => {
     })
 
     test('expect NOT_FOUND on getSentById reject', async () => {
-      mocked(dynamodb).getSentById.mockRejectedValueOnce(undefined)
+      jest.mocked(dynamodb).getSentById.mockRejectedValueOnce(undefined)
       const result = await getContentsHandler(event)
 
       expect(result).toEqual(expect.objectContaining(status.NOT_FOUND))
     })
 
     test('expect NOT_FOUND when getS3Object rejects', async () => {
-      mocked(s3).getS3Object.mockRejectedValueOnce(undefined)
+      jest.mocked(s3).getS3Object.mockRejectedValueOnce(undefined)
       const result = await getContentsHandler(event)
 
       expect(result).toEqual(status.NOT_FOUND)
@@ -57,7 +55,7 @@ describe('get-contents', () => {
     test('expect OK when index exists', async () => {
       const result = await getContentsHandler(event)
 
-      expect(mocked(s3.getS3Object)).toHaveBeenCalledWith('sent/account/7yh8g-7ytguy-98ui8u-5efka-87y87y')
+      expect(s3.getS3Object).toHaveBeenCalledWith('sent/account/7yh8g-7ytguy-98ui8u-5efka-87y87y')
       expect(result).toEqual({
         ...status.OK,
         body: JSON.stringify({

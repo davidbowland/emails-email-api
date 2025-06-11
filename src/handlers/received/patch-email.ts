@@ -1,17 +1,17 @@
 import { applyPatch } from 'fast-json-patch'
 
+import { mutateObjectOnJsonPatch, throwOnInvalidJsonPatch } from '../../config'
+import { getReceivedById, setReceivedById } from '../../services/dynamodb'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2, Email, PatchOperation } from '../../types'
 import { extractJsonPatchFromEvent, validateUsernameInEvent } from '../../utils/events'
-import { getReceivedById, setReceivedById } from '../../services/dynamodb'
 import { log, logError } from '../../utils/logging'
-import { mutateObjectOnJsonPatch, throwOnInvalidJsonPatch } from '../../config'
 import status from '../../utils/status'
 
 const applyJsonPatch = async (
   email: Email,
   accountId: string,
   emailId: string,
-  patchOperations: PatchOperation[]
+  patchOperations: PatchOperation[],
 ): Promise<APIGatewayProxyResultV2<any>> => {
   const updatedEmail = applyPatch(email, patchOperations, throwOnInvalidJsonPatch, mutateObjectOnJsonPatch).newDocument
   try {
@@ -26,7 +26,7 @@ const applyJsonPatch = async (
 const patchById = async (
   accountId: string,
   emailId: string,
-  patchOperations: PatchOperation[]
+  patchOperations: PatchOperation[],
 ): Promise<APIGatewayProxyResultV2<any>> => {
   try {
     const email = await getReceivedById(accountId, emailId)

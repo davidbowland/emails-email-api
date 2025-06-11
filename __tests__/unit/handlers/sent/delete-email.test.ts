@@ -1,12 +1,10 @@
-import { mocked } from 'jest-mock'
-
-import * as dynamodb from '@services/dynamodb'
-import * as events from '@utils/events'
-import * as s3 from '@services/s3'
 import { accountId, email, emailId } from '../../__mocks__'
-import { APIGatewayProxyEventV2 } from '@types'
-import { deleteEmailHandler } from '@handlers/sent/delete-email'
 import eventJson from '@events/sent/delete-email.json'
+import { deleteEmailHandler } from '@handlers/sent/delete-email'
+import * as dynamodb from '@services/dynamodb'
+import * as s3 from '@services/s3'
+import { APIGatewayProxyEventV2 } from '@types'
+import * as events from '@utils/events'
 import status from '@utils/status'
 
 jest.mock('@services/dynamodb')
@@ -18,39 +16,39 @@ describe('delete-email', () => {
   const event = eventJson as unknown as APIGatewayProxyEventV2
 
   beforeAll(() => {
-    mocked(dynamodb).getSentById.mockResolvedValue(email)
-    mocked(events).validateUsernameInEvent.mockReturnValue(true)
+    jest.mocked(dynamodb).getSentById.mockResolvedValue(email)
+    jest.mocked(events).validateUsernameInEvent.mockReturnValue(true)
   })
 
   describe('deleteEmailHandler', () => {
     test('expect attachments, email, and DynamoDB deleted', async () => {
       await deleteEmailHandler(event)
 
-      expect(mocked(dynamodb).deleteSentById).toHaveBeenCalledWith(accountId, emailId)
-      expect(mocked(s3).deleteS3Object).toHaveBeenCalledWith(
-        'sent/account/7yh8g-7ytguy-98ui8u-5efka-87y87y/9ijh-6tfg-dfsf3-sdfio-johac'
+      expect(dynamodb.deleteSentById).toHaveBeenCalledWith(accountId, emailId)
+      expect(s3.deleteS3Object).toHaveBeenCalledWith(
+        'sent/account/7yh8g-7ytguy-98ui8u-5efka-87y87y/9ijh-6tfg-dfsf3-sdfio-johac',
       )
-      expect(mocked(s3).deleteS3Object).toHaveBeenCalledWith('sent/account/7yh8g-7ytguy-98ui8u-5efka-87y87y')
+      expect(s3.deleteS3Object).toHaveBeenCalledWith('sent/account/7yh8g-7ytguy-98ui8u-5efka-87y87y')
     })
 
     test('expect no attachment delete when no attachments', async () => {
-      mocked(dynamodb).getSentById.mockResolvedValueOnce({ ...email, attachments: undefined })
+      jest.mocked(dynamodb).getSentById.mockResolvedValueOnce({ ...email, attachments: undefined })
       await deleteEmailHandler(event)
 
-      expect(mocked(dynamodb).deleteSentById).toHaveBeenCalledWith(accountId, emailId)
-      expect(mocked(s3).deleteS3Object).toHaveBeenCalledWith('sent/account/7yh8g-7ytguy-98ui8u-5efka-87y87y')
-      expect(mocked(s3).deleteS3Object).toHaveBeenCalledTimes(1)
+      expect(dynamodb.deleteSentById).toHaveBeenCalledWith(accountId, emailId)
+      expect(s3.deleteS3Object).toHaveBeenCalledWith('sent/account/7yh8g-7ytguy-98ui8u-5efka-87y87y')
+      expect(s3.deleteS3Object).toHaveBeenCalledTimes(1)
     })
 
     test("expect FORBIDDEN when user name doesn't match", async () => {
-      mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
+      jest.mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await deleteEmailHandler(event)
 
       expect(result).toEqual(status.FORBIDDEN)
     })
 
     test('expect INTERNAL_SERVER_ERROR when validateUsernameInEvent throws', async () => {
-      mocked(events).validateUsernameInEvent.mockImplementationOnce(() => {
+      jest.mocked(events).validateUsernameInEvent.mockImplementationOnce(() => {
         throw new Error('fnord')
       })
       const result = await deleteEmailHandler(event)
@@ -59,14 +57,14 @@ describe('delete-email', () => {
     })
 
     test('expect NOT_FOUND on getSentById reject', async () => {
-      mocked(dynamodb).getSentById.mockRejectedValueOnce(undefined)
+      jest.mocked(dynamodb).getSentById.mockRejectedValueOnce(undefined)
       const result = await deleteEmailHandler(event)
 
       expect(result).toEqual(status.NOT_FOUND)
     })
 
     test('expect INTERNAL_SERVER_ERROR when deleteSentById rejects', async () => {
-      mocked(dynamodb).deleteSentById.mockRejectedValueOnce(undefined)
+      jest.mocked(dynamodb).deleteSentById.mockRejectedValueOnce(undefined)
       const result = await deleteEmailHandler(event)
 
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
@@ -79,15 +77,15 @@ describe('delete-email', () => {
     })
 
     test('expect OK when attachment delete rejects', async () => {
-      mocked(s3).deleteS3Object.mockRejectedValueOnce(undefined)
+      jest.mocked(s3).deleteS3Object.mockRejectedValueOnce(undefined)
       const result = await deleteEmailHandler(event)
 
       expect(result).toEqual(expect.objectContaining(status.OK))
     })
 
     test('expect OK when email delete rejects', async () => {
-      mocked(dynamodb).getSentById.mockResolvedValueOnce({ ...email, attachments: undefined })
-      mocked(s3).deleteS3Object.mockRejectedValueOnce(undefined)
+      jest.mocked(dynamodb).getSentById.mockResolvedValueOnce({ ...email, attachments: undefined })
+      jest.mocked(s3).deleteS3Object.mockRejectedValueOnce(undefined)
       const result = await deleteEmailHandler(event)
 
       expect(result).toEqual(expect.objectContaining(status.OK))

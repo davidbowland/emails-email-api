@@ -1,8 +1,8 @@
-import * as AWSXRay from 'aws-xray-sdk-core'
-import { log, logError, xrayCapture, xrayCaptureHttps } from '@utils/logging'
 import { DynamoDB } from '@aws-sdk/client-dynamodb'
+import * as AWSXRay from 'aws-xray-sdk-core'
 import https from 'https'
-import { mocked } from 'jest-mock'
+
+import { log, logError, xrayCapture, xrayCaptureHttps } from '@utils/logging'
 
 jest.mock('aws-xray-sdk-core')
 
@@ -20,7 +20,7 @@ describe('logging', () => {
         await log(message)
 
         expect(console.log).toHaveBeenCalledWith(message)
-      }
+      },
     )
   })
 
@@ -33,7 +33,7 @@ describe('logging', () => {
         await logError(error)
 
         expect(console.error).toHaveBeenCalledWith(error)
-      }
+      },
     )
   })
 
@@ -42,14 +42,14 @@ describe('logging', () => {
     const dynamodb = 'dynamodb'
 
     beforeAll(() => {
-      mocked(AWSXRay).captureAWSv3Client.mockReturnValue(capturedDynamodb)
+      jest.mocked(AWSXRay).captureAWSv3Client.mockReturnValue(capturedDynamodb)
     })
 
     test('expect AWSXRay.captureAWSv3Client when x-ray is enabled (not running locally)', () => {
       process.env.AWS_SAM_LOCAL = 'false'
       const result = xrayCapture(dynamodb)
 
-      expect(mocked(AWSXRay).captureAWSv3Client).toHaveBeenCalledWith(dynamodb)
+      expect(AWSXRay.captureAWSv3Client).toHaveBeenCalledWith(dynamodb)
       expect(result).toEqual(capturedDynamodb)
     })
 
@@ -57,7 +57,7 @@ describe('logging', () => {
       process.env.AWS_SAM_LOCAL = 'true'
       const result = xrayCapture(dynamodb)
 
-      expect(mocked(AWSXRay).captureAWSv3Client).toHaveBeenCalledTimes(0)
+      expect(AWSXRay.captureAWSv3Client).toHaveBeenCalledTimes(0)
       expect(result).toEqual(dynamodb)
     })
   })
@@ -67,14 +67,14 @@ describe('logging', () => {
       process.env.AWS_SAM_LOCAL = 'false'
       xrayCaptureHttps()
 
-      expect(mocked(AWSXRay).captureHTTPsGlobal).toHaveBeenCalledWith(https)
+      expect(AWSXRay.captureHTTPsGlobal).toHaveBeenCalledWith(https)
     })
 
     test('expect same object when x-ray is disabled (running locally)', () => {
       process.env.AWS_SAM_LOCAL = 'true'
       xrayCaptureHttps()
 
-      expect(mocked(AWSXRay).captureHTTPsGlobal).toHaveBeenCalledTimes(0)
+      expect(AWSXRay.captureHTTPsGlobal).toHaveBeenCalledTimes(0)
     })
   })
 })

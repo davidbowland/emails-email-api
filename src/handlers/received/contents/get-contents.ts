@@ -1,12 +1,12 @@
 import { simpleParser } from 'mailparser'
 
-import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../../types'
-import { log, logError } from '../../../utils/logging'
-import { convertParsedContentsToEmail } from '../../../utils/parser'
 import { getReceivedById } from '../../../services/dynamodb'
 import { getS3Object } from '../../../services/s3'
-import status from '../../../utils/status'
+import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../../types'
 import { validateUsernameInEvent } from '../../../utils/events'
+import { log, logError } from '../../../utils/logging'
+import { convertParsedContentsToEmail } from '../../../utils/parser'
+import status from '../../../utils/status'
 
 export const getContentsHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
   log('Received event', { ...event, body: undefined })

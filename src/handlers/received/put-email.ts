@@ -1,7 +1,7 @@
-import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../types'
-import { log, logError } from '../../utils/logging'
-import { extractEmailFromEvent } from '../../utils/events'
 import { setReceivedById } from '../../services/dynamodb'
+import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../types'
+import { extractEmailFromEvent } from '../../utils/events'
+import { log, logError } from '../../utils/logging'
 import status from '../../utils/status'
 
 export const putEmailHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {

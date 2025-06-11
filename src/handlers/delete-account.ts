@@ -1,8 +1,8 @@
-import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../types'
 import { deleteAccountById, getAccountById } from '../services/dynamodb'
+import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../types'
+import { validateUsernameInEvent } from '../utils/events'
 import { log, logError } from '../utils/logging'
 import status from '../utils/status'
-import { validateUsernameInEvent } from '../utils/events'
 
 export const deleteAccountHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
   log('Received event', { ...event, body: undefined })

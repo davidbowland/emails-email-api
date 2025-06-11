@@ -1,11 +1,9 @@
-import { mocked } from 'jest-mock'
-
-import * as dynamodb from '@services/dynamodb'
-import * as events from '@utils/events'
 import { account } from '../__mocks__'
-import { APIGatewayProxyEventV2 } from '@types'
-import { deleteAccountHandler } from '@handlers/delete-account'
 import eventJson from '@events/delete-account.json'
+import { deleteAccountHandler } from '@handlers/delete-account'
+import * as dynamodb from '@services/dynamodb'
+import { APIGatewayProxyEventV2 } from '@types'
+import * as events from '@utils/events'
 import status from '@utils/status'
 
 jest.mock('@services/dynamodb')
@@ -16,33 +14,33 @@ describe('delete-account', () => {
   const event = eventJson as unknown as APIGatewayProxyEventV2
 
   beforeAll(() => {
-    mocked(dynamodb).getAccountById.mockResolvedValue(account)
-    mocked(events).validateUsernameInEvent.mockReturnValue(true)
+    jest.mocked(dynamodb).getAccountById.mockResolvedValue(account)
+    jest.mocked(events).validateUsernameInEvent.mockReturnValue(true)
   })
 
   describe('deleteAccountHandler', () => {
-    test("expect FORBIDDEN when user name doesn't match", async () => {
-      mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
+    it("should return FORBIDDEN when user name doesn't match", async () => {
+      jest.mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await deleteAccountHandler(event)
 
       expect(result).toEqual(status.FORBIDDEN)
     })
 
-    test('expect INTERNAL_SERVER_ERROR on deleteAccountById reject', async () => {
-      mocked(dynamodb).deleteAccountById.mockRejectedValueOnce(undefined)
+    it('should return INTERNAL_SERVER_ERROR on deleteAccountById reject', async () => {
+      jest.mocked(dynamodb).deleteAccountById.mockRejectedValueOnce(undefined)
       const result = await deleteAccountHandler(event)
 
       expect(result).toEqual(expect.objectContaining(status.INTERNAL_SERVER_ERROR))
     })
 
-    test('expect OK when accountId exists', async () => {
+    it('should return OK when accountId exists', async () => {
       const result = await deleteAccountHandler(event)
 
       expect(result).toEqual({ ...status.OK, body: JSON.stringify(account) })
     })
 
-    test('expect NO_CONTENT when accountId does not exist', async () => {
-      mocked(dynamodb).getAccountById.mockRejectedValueOnce(undefined)
+    it('should return NO_CONTENT when accountId does not exist', async () => {
+      jest.mocked(dynamodb).getAccountById.mockRejectedValueOnce(undefined)
       const result = await deleteAccountHandler(event)
 
       expect(result).toEqual(expect.objectContaining(status.NO_CONTENT))

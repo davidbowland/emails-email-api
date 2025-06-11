@@ -10,8 +10,8 @@ import {
   ScanOutput,
 } from '@aws-sdk/client-dynamodb'
 
-import { Account, AccountBatch, Email, EmailBatch } from '../types'
 import { dynamodbAccountsTableName, dynamodbReceivedTableName, dynamodbSentTableName } from '../config'
+import { Account, AccountBatch, Email, EmailBatch } from '../types'
 import { xrayCapture } from '../utils/logging'
 
 const dynamodb = xrayCapture(new DynamoDBClient({ apiVersion: '2012-08-10' }))
@@ -46,7 +46,7 @@ export const getAccountById = async (account: string): Promise<Account> => {
 const getAccountsFromScan = (response: ScanOutput): AccountBatch[] =>
   response.Items?.reduce(
     (result, item) => [...result, { data: JSON.parse(item.Data.S as string), id: item.Account.S as string }],
-    [] as AccountBatch[]
+    [] as AccountBatch[],
   ) as AccountBatch[]
 
 export const getAccounts = async (): Promise<AccountBatch[]> => {
@@ -112,7 +112,7 @@ const getReceivedFromScan = (response: ScanOutput): EmailBatch[] =>
       ...result,
       { accountId: item.Account.S as string, data: JSON.parse(item.Data.S as string), id: item.MessageID.S as string },
     ],
-    [] as EmailBatch[]
+    [] as EmailBatch[],
   ) as EmailBatch[]
 
 export const getReceived = async (account: string): Promise<EmailBatch[]> => {
@@ -188,7 +188,7 @@ const getSentFromScan = (response: ScanOutput): EmailBatch[] =>
       ...result,
       { accountId: item.Account.S as string, data: JSON.parse(item.Data.S as string), id: item.MessageID.S as string },
     ],
-    [] as EmailBatch[]
+    [] as EmailBatch[],
   ) as EmailBatch[]
 
 export const getSent = async (account: string): Promise<EmailBatch[]> => {

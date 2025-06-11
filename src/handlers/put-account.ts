@@ -1,7 +1,7 @@
+import { setAccountById } from '../services/dynamodb'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../types'
 import { extractAccountFromEvent, validateUsernameInEvent } from '../utils/events'
 import { log, logError } from '../utils/logging'
-import { setAccountById } from '../services/dynamodb'
 import status from '../utils/status'
 
 export const putAccountHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {

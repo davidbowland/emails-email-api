@@ -1,5 +1,10 @@
-import { Account, APIGatewayProxyEventV2, Email, EmailAttachment, EmailOutbound } from '@types'
 import { account, attachmentId, email, emailContents, emailId, jsonPatchOperations, outboundEmail } from '../__mocks__'
+import patchEventJson from '@events/patch-account.json'
+import putAccountEventJson from '@events/put-account.json'
+import getEventJson from '@events/received/get-email.json'
+import putEmailEventJson from '@events/received/put-email.json'
+import postEventJson from '@events/sent/post-email.json'
+import { Account, APIGatewayProxyEventV2, Email, EmailAttachment, EmailOutbound } from '@types'
 import {
   convertOutboundToContents,
   convertOutboundToEmail,
@@ -13,11 +18,6 @@ import {
   formatEmailOutbound,
   validateUsernameInEvent,
 } from '@utils/events'
-import getEventJson from '@events/received/get-email.json'
-import patchEventJson from '@events/patch-account.json'
-import postEventJson from '@events/sent/post-email.json'
-import putAccountEventJson from '@events/put-account.json'
-import putEmailEventJson from '@events/received/put-email.json'
 
 describe('events', () => {
   const from = {
@@ -27,20 +27,20 @@ describe('events', () => {
 
   describe('account', () => {
     describe('formatAccount', () => {
-      test('expect formatted account', () => {
+      it('should format account correctly', () => {
         const accountWithExtra = { ...account, something: 'invalid' } as unknown as Account
         const formattedAccount = formatAccount(accountWithExtra)
 
         expect(formattedAccount).toEqual({ forwardTargets: ['any@domain.com'], name: 'Any' })
       })
 
-      test.each([undefined, 'a string'])('expect error on invalid forwardTargets - %s', (forwardTargets) => {
+      it.each([undefined, 'a string'])('should throw error on invalid forwardTargets - %s', (forwardTargets) => {
         const invalidAccount = { ...account, forwardTargets } as unknown as Account
 
         expect(() => formatAccount(invalidAccount)).toThrow()
       })
 
-      test.each([undefined, ''])('expect error on invalid name - %s', (name) => {
+      it.each([undefined, ''])('should throw error on invalid name - %s', (name) => {
         const invalidAccount = { ...account, name } as unknown as Account
 
         expect(() => formatAccount(invalidAccount)).toThrow()
@@ -52,13 +52,13 @@ describe('events', () => {
     describe('convertOutboundToContents', () => {
       const timestamp = 1533517138000
 
-      test('expect outbound email converted', () => {
+      it('should convert outbound email correctly', () => {
         const result = convertOutboundToContents(emailId, outboundEmail, timestamp)
 
         expect(result).toEqual(emailContents)
       })
 
-      test('expect outbound email converted with empty addresses', () => {
+      it('should convert outbound email with empty addresses', () => {
         const outboundWithEmpty = { ...outboundEmail, cc: undefined, references: undefined, to: undefined }
         const result = convertOutboundToContents(emailId, outboundWithEmpty, timestamp)
 
@@ -71,7 +71,7 @@ describe('events', () => {
               text: '',
               value: [],
             },
-          })
+          }),
         )
       })
     })
@@ -102,7 +102,7 @@ describe('events', () => {
             subject: 'Hello, world!',
             to: ['another@domain.com'],
             viewed: false,
-          })
+          }),
         )
         expect(result.timestamp).toBeDefined()
       })
@@ -118,7 +118,7 @@ describe('events', () => {
             subject: 'Hello, world!',
             to: [],
             viewed: false,
-          })
+          }),
         )
         expect(result.timestamp).toBeDefined()
       })
@@ -425,13 +425,13 @@ describe('events', () => {
     describe('extractAccountFromEvent', () => {
       const event = putAccountEventJson as unknown as APIGatewayProxyEventV2
 
-      test('expect account from event', () => {
+      it('should extract account from event', () => {
         const result = extractAccountFromEvent(event)
 
         expect(result).toEqual(account)
       })
 
-      test('expect account from event in base64', () => {
+      it('should extract account from base64 encoded event', () => {
         const tempEvent = {
           ...event,
           body: Buffer.from(event.body).toString('base64'),
@@ -442,7 +442,7 @@ describe('events', () => {
         expect(result).toEqual(account)
       })
 
-      test('expect reject on invalid event', () => {
+      it('should reject invalid event', () => {
         const tempEvent = { ...event, body: JSON.stringify({}) } as unknown as APIGatewayProxyEventV2
 
         expect(() => extractAccountFromEvent(tempEvent)).toThrow()
@@ -450,7 +450,7 @@ describe('events', () => {
     })
 
     describe('extractJsonPatchFromEvent', () => {
-      test('expect preference from event', () => {
+      it('should extract preference from event', () => {
         const result = extractJsonPatchFromEvent(patchEventJson as unknown as APIGatewayProxyEventV2)
 
         expect(result).toEqual(jsonPatchOperations)
@@ -458,7 +458,7 @@ describe('events', () => {
     })
 
     describe('extractJwtFromEvent', () => {
-      test('expect payload successfully extracted', () => {
+      it('should successfully extract payload', () => {
         const result = extractJwtFromEvent(getEventJson as unknown as APIGatewayProxyEventV2)
 
         expect(result).toEqual({
@@ -471,7 +471,7 @@ describe('events', () => {
         })
       })
 
-      test('expect null on invalid JWT', () => {
+      it('should return null on invalid JWT', () => {
         const result = extractJwtFromEvent({
           ...getEventJson,
           headers: {
@@ -482,7 +482,7 @@ describe('events', () => {
         expect(result).toBeNull()
       })
 
-      test('expect null on missing header', () => {
+      it('should return null on missing header', () => {
         const event = { ...getEventJson, headers: {} } as unknown as APIGatewayProxyEventV2
         const result = extractJwtFromEvent(event)
 
@@ -493,13 +493,13 @@ describe('events', () => {
     describe('extractEmailFromEvent', () => {
       const event = putEmailEventJson as unknown as APIGatewayProxyEventV2
 
-      test('expect email from event', () => {
+      it('should extract email from event', () => {
         const result = extractEmailFromEvent(event)
 
         expect(result).toEqual(email)
       })
 
-      test('expect email from event in base64', () => {
+      it('should extract email from base64 encoded event', () => {
         const tempEvent = {
           ...event,
           body: Buffer.from(event.body).toString('base64'),
@@ -510,7 +510,7 @@ describe('events', () => {
         expect(result).toEqual(email)
       })
 
-      test('expect reject on invalid event', () => {
+      it('should reject invalid event', () => {
         const tempEvent = { ...event, body: JSON.stringify({}) } as unknown as APIGatewayProxyEventV2
 
         expect(() => extractEmailFromEvent(tempEvent)).toThrow()
@@ -520,13 +520,13 @@ describe('events', () => {
     describe('extractEmailOutboundFromEvent', () => {
       const event = postEventJson as unknown as APIGatewayProxyEventV2
 
-      test('expect email from event', () => {
+      it('should extract email from event', () => {
         const result = extractEmailOutboundFromEvent(event, from)
 
         expect(result).toEqual(outboundEmail)
       })
 
-      test('expect email from event in base64', () => {
+      it('should extract email from base64 encoded event', () => {
         const tempEvent = {
           ...event,
           body: Buffer.from(event.body).toString('base64'),
@@ -537,7 +537,7 @@ describe('events', () => {
         expect(result).toEqual(outboundEmail)
       })
 
-      test('expect reject on invalid event', () => {
+      it('should reject invalid event', () => {
         const tempEvent = { ...event, body: JSON.stringify({}) } as unknown as APIGatewayProxyEventV2
 
         expect(() => extractEmailOutboundFromEvent(tempEvent, from)).toThrow()
@@ -547,19 +547,19 @@ describe('events', () => {
     describe('validateUsernameInEvent', () => {
       const username = 'admin'
 
-      test('expect true returned when external and matching', () => {
+      it('should return true when external and matching', () => {
         const result = validateUsernameInEvent(getEventJson as unknown as APIGatewayProxyEventV2, username)
 
         expect(result).toEqual(true)
       })
 
-      test('expect false returned when external and not matching', () => {
+      it('should return false when external and not matching', () => {
         const result = validateUsernameInEvent(getEventJson as unknown as APIGatewayProxyEventV2, 'not-matching')
 
         expect(result).toEqual(false)
       })
 
-      test('expect true returned when internal', () => {
+      it('should return true when internal', () => {
         const event = {
           ...getEventJson,
           requestContext: {

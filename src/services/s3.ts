@@ -11,10 +11,10 @@ import {
 } from '@aws-sdk/client-s3'
 import { createPresignedPost, PresignedPost } from '@aws-sdk/s3-presigned-post'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-
-import { AttachmentContents, StringObject } from '../types'
-import { emailBucket, maxUploadSize } from '../config'
 import { Readable } from 'stream'
+
+import { emailBucket, maxUploadSize } from '../config'
+import { AttachmentContents, StringObject } from '../types'
 import { xrayCapture } from '../utils/logging'
 
 const s3 = xrayCapture(new S3Client({ apiVersion: '2006-03-01' }))
@@ -52,7 +52,7 @@ export const getSignedS3Url = async (key: string): Promise<string> => {
 export const putS3Object = async (
   key: string,
   body: Buffer | string,
-  metadata: StringObject = {}
+  metadata: StringObject = {},
 ): Promise<PutObjectOutput> => {
   const command = new PutObjectCommand({ Body: body, Bucket: emailBucket, Key: key, Metadata: metadata })
   return s3.send(command)

@@ -42,7 +42,7 @@ const convertOutboundAttachmentToEmail = (attachment: AttachmentCommon): EmailAt
 export const convertOutboundToContents = (
   messageId: string,
   outbound: EmailOutbound,
-  timestamp: number
+  timestamp: number,
 ): EmailContents => ({
   attachments: outbound.attachments?.map(convertOutboundAttachmentToEmail),
   bccAddress: outbound.bcc && {
@@ -216,7 +216,7 @@ export const formatEmailOutbound = (email: EmailOutbound, from: EmailAddress): E
 
 const parseEventBody = (event: APIGatewayProxyEventV2): unknown =>
   JSON.parse(
-    event.isBase64Encoded && event.body ? Buffer.from(event.body, 'base64').toString('utf8') : (event.body as string)
+    event.isBase64Encoded && event.body ? Buffer.from(event.body, 'base64').toString('utf8') : (event.body as string),
   )
 
 export const extractAccountFromEvent = (event: APIGatewayProxyEventV2): Account =>
@@ -233,7 +233,7 @@ export const extractJsonPatchFromEvent = (event: APIGatewayProxyEventV2): PatchO
 
 export const extractJwtFromEvent = (event: APIGatewayProxyEventV2): StringObject =>
   jwt.decode(
-    (event.headers.authorization || event.headers.Authorization || '').replace(/^Bearer /i, '')
+    (event.headers.authorization || event.headers.Authorization || '').replace(/^Bearer /i, ''),
   ) as StringObject
 
 export const validateUsernameInEvent = (event: APIGatewayProxyEventV2, username: string): boolean => {

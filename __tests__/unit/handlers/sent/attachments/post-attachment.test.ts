@@ -1,12 +1,11 @@
-import { mocked } from 'jest-mock'
-
-import * as events from '@utils/events'
-import * as s3 from '@services/s3'
 import * as uuid from 'uuid'
-import { APIGatewayProxyEventV2 } from '@types'
+
+import { postAttachmentResult } from '../../../__mocks__'
 import eventJson from '@events/sent/attachments/post-attachment.json'
 import { postAttachmentHandler } from '@handlers/sent/attachments/post-attachment'
-import { postAttachmentResult } from '../../../__mocks__'
+import * as s3 from '@services/s3'
+import { APIGatewayProxyEventV2 } from '@types'
+import * as events from '@utils/events'
 import status from '@utils/status'
 
 jest.mock('uuid')
@@ -19,21 +18,21 @@ describe('post-attachment', () => {
   const expectedUuid = 'uuuuu-uuuuu-iiiii-ddddd'
 
   beforeAll(() => {
-    mocked(events).validateUsernameInEvent.mockReturnValue(true)
-    mocked(s3).uploadS3Object.mockResolvedValue(postAttachmentResult as any)
-    mocked(uuid).v4.mockReturnValue(expectedUuid)
+    jest.mocked(events).validateUsernameInEvent.mockReturnValue(true)
+    jest.mocked(s3).uploadS3Object.mockResolvedValue(postAttachmentResult as any)
+    jest.mocked(uuid).v4.mockReturnValue(expectedUuid)
   })
 
   describe('postAttachmentHandler', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
-      mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
+      jest.mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await postAttachmentHandler(event)
 
       expect(result).toEqual(status.FORBIDDEN)
     })
 
     test('expect INTERNAL_SERVER_ERROR when validateUsernameInEvent throws', async () => {
-      mocked(events).validateUsernameInEvent.mockImplementationOnce(() => {
+      jest.mocked(events).validateUsernameInEvent.mockImplementationOnce(() => {
         throw new Error('fnord')
       })
       const result = await postAttachmentHandler(event)
@@ -42,7 +41,7 @@ describe('post-attachment', () => {
     })
 
     test('expect INTERNAL_SERVER_ERROR when uploadS3Object rejects', async () => {
-      mocked(s3).uploadS3Object.mockRejectedValueOnce(undefined)
+      jest.mocked(s3).uploadS3Object.mockRejectedValueOnce(undefined)
       const result = await postAttachmentHandler(event)
 
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
@@ -51,7 +50,7 @@ describe('post-attachment', () => {
     test('expect CREATED and result', async () => {
       const result = await postAttachmentHandler(event)
 
-      expect(mocked(s3).uploadS3Object).toHaveBeenCalledWith('attachments/account/uuuuu-uuuuu-iiiii-ddddd')
+      expect(s3.uploadS3Object).toHaveBeenCalledWith('attachments/account/uuuuu-uuuuu-iiiii-ddddd')
       expect(result).toEqual({
         ...status.CREATED,
         body: JSON.stringify(postAttachmentResult),

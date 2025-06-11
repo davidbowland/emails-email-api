@@ -1,9 +1,9 @@
-import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../types'
 import { deleteSentById, getSentById } from '../../services/dynamodb'
-import { log, logError } from '../../utils/logging'
 import { deleteS3Object } from '../../services/s3'
-import status from '../../utils/status'
+import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../types'
 import { validateUsernameInEvent } from '../../utils/events'
+import { log, logError } from '../../utils/logging'
+import status from '../../utils/status'
 
 const deleteEmail = async (accountId: string, emailId: string) => {
   try {
@@ -12,7 +12,7 @@ const deleteEmail = async (accountId: string, emailId: string) => {
       await deleteSentById(accountId, emailId)
       try {
         await Promise.all(
-          data.attachments?.map((attachment) => deleteS3Object(`sent/${accountId}/${emailId}/${attachment.id}`)) ?? []
+          data.attachments?.map((attachment) => deleteS3Object(`sent/${accountId}/${emailId}/${attachment.id}`)) ?? [],
         )
       } catch (error) {
         log('Error deleting attachments', { accountId, emailId, error })

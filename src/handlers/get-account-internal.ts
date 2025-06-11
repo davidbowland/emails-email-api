@@ -1,10 +1,10 @@
+import { getAccountById } from '../services/dynamodb'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../types'
 import { log, logError } from '../utils/logging'
-import { getAccountById } from '../services/dynamodb'
 import status from '../utils/status'
 
 export const getAccountInternalHandler = async (
-  event: APIGatewayProxyEventV2
+  event: APIGatewayProxyEventV2,
 ): Promise<APIGatewayProxyResultV2<any>> => {
   log('Received event', { ...event, body: undefined })
   const accountId = event.pathParameters?.accountId as string

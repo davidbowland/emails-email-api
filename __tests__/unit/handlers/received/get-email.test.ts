@@ -1,11 +1,9 @@
-import { mocked } from 'jest-mock'
-
-import * as dynamodb from '@services/dynamodb'
-import * as events from '@utils/events'
 import { accountId, email, emailId } from '../../__mocks__'
-import { APIGatewayProxyEventV2 } from '@types'
 import eventJson from '@events/received/get-email.json'
 import { getEmailHandler } from '@handlers/received/get-email'
+import * as dynamodb from '@services/dynamodb'
+import { APIGatewayProxyEventV2 } from '@types'
+import * as events from '@utils/events'
 import status from '@utils/status'
 
 jest.mock('@services/dynamodb')
@@ -16,20 +14,20 @@ describe('get-email', () => {
   const event = eventJson as unknown as APIGatewayProxyEventV2
 
   beforeAll(() => {
-    mocked(dynamodb).getReceivedById.mockResolvedValue(email)
-    mocked(events).validateUsernameInEvent.mockReturnValue(true)
+    jest.mocked(dynamodb).getReceivedById.mockResolvedValue(email)
+    jest.mocked(events).validateUsernameInEvent.mockReturnValue(true)
   })
 
   describe('getEmailHandler', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
-      mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
+      jest.mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await getEmailHandler(event)
 
       expect(result).toEqual(status.FORBIDDEN)
     })
 
     test('expect INTERNAL_SERVER_ERROR when validateUsernameInEvent throws', async () => {
-      mocked(events).validateUsernameInEvent.mockImplementationOnce(() => {
+      jest.mocked(events).validateUsernameInEvent.mockImplementationOnce(() => {
         throw new Error('fnord')
       })
       const result = await getEmailHandler(event)
@@ -38,7 +36,7 @@ describe('get-email', () => {
     })
 
     test('expect NOT_FOUND on getReceivedById reject', async () => {
-      mocked(dynamodb).getReceivedById.mockRejectedValueOnce(undefined)
+      jest.mocked(dynamodb).getReceivedById.mockRejectedValueOnce(undefined)
       const result = await getEmailHandler(event)
 
       expect(result).toEqual(status.NOT_FOUND)

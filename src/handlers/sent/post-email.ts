@@ -1,3 +1,7 @@
+import { emailDomain } from '../../config'
+import { getAccountById, setSentById } from '../../services/dynamodb'
+import { sendEmail } from '../../services/queue'
+import { copyS3Object, putS3Object } from '../../services/s3'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../types'
 import {
   convertOutboundToContents,
@@ -5,11 +9,7 @@ import {
   extractEmailOutboundFromEvent,
   validateUsernameInEvent,
 } from '../../utils/events'
-import { copyS3Object, putS3Object } from '../../services/s3'
-import { getAccountById, setSentById } from '../../services/dynamodb'
 import { log, logError } from '../../utils/logging'
-import { emailDomain } from '../../config'
-import { sendEmail } from '../../services/queue'
 import status from '../../utils/status'
 
 export const postEmailHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
@@ -37,7 +37,7 @@ export const postEmailHandler = async (event: APIGatewayProxyEventV2): Promise<A
         for (const attachment of contents.attachments ?? []) {
           await copyS3Object(
             `attachments/${accountId}/${attachment.id}`,
-            `sent/${accountId}/${messageId}/${attachment.id}`
+            `sent/${accountId}/${messageId}/${attachment.id}`,
           )
         }
         await setSentById(accountId, messageId, email)

@@ -1,4 +1,4 @@
-# Lambds Emails API
+# Lambda Emails API
 
 Lambdas for emails API, which is the back-end for emails-ui.
 
@@ -40,7 +40,7 @@ mfa_serial=<YOUR_MFA_ARN>
 region=us-east-2
 ```
 
-If necessary, retreive the ARN of the primary MFA device attached to the default profile:
+If necessary, retrieve the ARN of the primary MFA device attached to the default profile:
 
 ```bash
 aws iam list-mfa-devices --query 'MFADevices[].SerialNumber' --output text

@@ -1,9 +1,10 @@
+import { v4 as uuidv4 } from 'uuid'
+
+import { uploadS3Object } from '../../../services/s3'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../../types'
+import { validateUsernameInEvent } from '../../../utils/events'
 import { log } from '../../../utils/logging'
 import status from '../../../utils/status'
-import { uploadS3Object } from '../../../services/s3'
-import { v4 as uuidv4 } from 'uuid'
-import { validateUsernameInEvent } from '../../../utils/events'
 
 export const postAttachmentHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
   log('Received event', { ...event, body: undefined })

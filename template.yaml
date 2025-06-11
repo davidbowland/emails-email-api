@@ -136,7 +136,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/delete-account.deleteAccountHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -205,7 +205,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/get-account-internal.getAccountInternalHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -268,7 +268,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/get-account.getAccountHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -337,7 +337,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/get-all-accounts.getAllAccountsHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -400,7 +400,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/patch-account.patchAccountHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -469,7 +469,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/put-account.putAccountHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -540,7 +540,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/received/delete-email.deleteEmailHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -612,7 +612,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/received/get-all-emails.getAllEmailsHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -681,7 +681,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/received/get-email.getEmailHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -750,7 +750,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/received/patch-email.patchEmailHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -819,7 +819,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/received/put-email.putEmailHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -884,7 +884,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/received/attachments/get-attachment.getAttachmentHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -958,7 +958,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/received/contents/get-contents.getContentsHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -1032,7 +1032,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/sent/delete-email.deleteEmailHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -1104,7 +1104,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/sent/get-all-emails.getAllEmailsHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -1173,7 +1173,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/sent/get-email.getEmailHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -1242,7 +1242,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/sent/patch-email.patchEmailHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -1311,7 +1311,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/sent/post-email.postEmailHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -1391,7 +1391,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/sent/attachments/get-attachment.getAttachmentHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -1463,7 +1463,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/sent/attachments/post-attachment.postAttachmentHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -1535,7 +1535,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/sent/contents/get-contents.getContentsHandler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Architectures:
         - x86_64
       MemorySize: 128

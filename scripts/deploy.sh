@@ -12,7 +12,7 @@ fi
 SAM_TEMPLATE=template.yaml
 sam build --template ${SAM_TEMPLATE} --use-container -e NODE_ENV=production
 
-# Deploy build lambda
+# Deploy built lambda
 
 QUEUE_API_KEY=$(aws apigateway get-api-key --api-key a6d57eyf98 --include-value --region us-east-1 | jq -r .value)
 TESTING_ARTIFACTS_BUCKET=emails-lambda-test

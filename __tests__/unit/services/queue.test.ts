@@ -1,5 +1,6 @@
-import { emailId, outboundEmail } from '../__mocks__'
 import { http, HttpResponse, server } from '@setup-server'
+
+import { emailId, outboundEmail } from '../__mocks__'
 import { queueApiKey, queueApiUrl } from '@config'
 import { sendEmail } from '@services/queue'
 
@@ -18,7 +19,7 @@ describe('queue', () => {
 
           const body = postEndpoint(await request.json())
           return body ? HttpResponse.json(body) : new HttpResponse(null, { status: 400 })
-        })
+        }),
       )
     })
 
