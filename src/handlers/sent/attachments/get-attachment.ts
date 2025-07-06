@@ -5,7 +5,7 @@ import { validateUsernameInEvent } from '../../../utils/events'
 import { log } from '../../../utils/logging'
 import status from '../../../utils/status'
 
-export const getAttachmentHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
+export const getAttachmentHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<string>> => {
   log('Received event', { ...event, body: undefined })
   try {
     const accountId = event.pathParameters?.accountId as string

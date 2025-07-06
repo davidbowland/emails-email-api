@@ -4,7 +4,7 @@ import { validateUsernameInEvent } from '../../utils/events'
 import { log, logError } from '../../utils/logging'
 import status from '../../utils/status'
 
-export const getAllEmailsHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
+export const getAllEmailsHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<string>> => {
   log('Received event', event)
   try {
     const accountId = event.pathParameters?.accountId as string

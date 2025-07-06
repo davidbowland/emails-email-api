@@ -11,7 +11,7 @@ const applyJsonPatch = async (
   account: Account,
   accountId: string,
   patchOperations: PatchOperation[],
-): Promise<APIGatewayProxyResultV2<any>> => {
+): Promise<APIGatewayProxyResultV2<string>> => {
   const updatedAccount = applyPatch(
     account,
     patchOperations,
@@ -30,21 +30,21 @@ const applyJsonPatch = async (
 const patchById = async (
   accountId: string,
   patchOperations: PatchOperation[],
-): Promise<APIGatewayProxyResultV2<any>> => {
+): Promise<APIGatewayProxyResultV2<string>> => {
   try {
     const account = await getAccountById(accountId)
     try {
       const formattedAccount = formatAccount(account)
       return await applyJsonPatch(formattedAccount, accountId, patchOperations)
-    } catch (error: any) {
-      return { ...status.BAD_REQUEST, body: JSON.stringify({ message: error.message }) }
+    } catch (error: unknown) {
+      return { ...status.BAD_REQUEST, body: JSON.stringify({ message: (error as any).message }) }
     }
   } catch {
     return status.NOT_FOUND
   }
 }
 
-export const patchAccountHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
+export const patchAccountHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<string>> => {
   log('Received event', { ...event, body: undefined })
   try {
     const accountId = event.pathParameters?.accountId as string
@@ -58,7 +58,7 @@ export const patchAccountHandler = async (event: APIGatewayProxyEventV2): Promis
     }
     const result = await patchById(accountId, patchOperations)
     return result
-  } catch (error: any) {
-    return { ...status.BAD_REQUEST, body: JSON.stringify({ message: error.message }) }
+  } catch (error: unknown) {
+    return { ...status.BAD_REQUEST, body: JSON.stringify({ message: (error as any).message }) }
   }
 }

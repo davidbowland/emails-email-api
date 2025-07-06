@@ -19,14 +19,14 @@ describe('get-email', () => {
   })
 
   describe('getEmailHandler', () => {
-    test("expect FORBIDDEN when user name doesn't match", async () => {
+    it("should return FORBIDDEN when user name doesn't match", async () => {
       jest.mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await getEmailHandler(event)
 
       expect(result).toEqual(status.FORBIDDEN)
     })
 
-    test('expect INTERNAL_SERVER_ERROR when validateUsernameInEvent throws', async () => {
+    it('should return INTERNAL_SERVER_ERROR when validateUsernameInEvent throws', async () => {
       jest.mocked(events).validateUsernameInEvent.mockImplementationOnce(() => {
         throw new Error('fnord')
       })
@@ -35,14 +35,14 @@ describe('get-email', () => {
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
 
-    test('expect NOT_FOUND on getReceivedById reject', async () => {
+    it('should return NOT_FOUND on getReceivedById reject', async () => {
       jest.mocked(dynamodb).getReceivedById.mockRejectedValueOnce(undefined)
       const result = await getEmailHandler(event)
 
       expect(result).toEqual(status.NOT_FOUND)
     })
 
-    test('expect OK when index exists', async () => {
+    it('should return OK when email exists', async () => {
       const result = await getEmailHandler(event)
 
       expect(result).toEqual({ ...status.OK, body: JSON.stringify({ ...email, accountId, id: emailId }) })

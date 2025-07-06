@@ -12,7 +12,7 @@ const applyJsonPatch = async (
   accountId: string,
   emailId: string,
   patchOperations: PatchOperation[],
-): Promise<APIGatewayProxyResultV2<any>> => {
+): Promise<APIGatewayProxyResultV2<string>> => {
   const updatedEmail = applyPatch(email, patchOperations, throwOnInvalidJsonPatch, mutateObjectOnJsonPatch).newDocument
   try {
     await setReceivedById(accountId, emailId, updatedEmail)
@@ -27,20 +27,20 @@ const patchById = async (
   accountId: string,
   emailId: string,
   patchOperations: PatchOperation[],
-): Promise<APIGatewayProxyResultV2<any>> => {
+): Promise<APIGatewayProxyResultV2<string>> => {
   try {
     const email = await getReceivedById(accountId, emailId)
     try {
       return await applyJsonPatch(email, accountId, emailId, patchOperations)
-    } catch (error: any) {
-      return { ...status.BAD_REQUEST, body: JSON.stringify({ message: error.message }) }
+    } catch (error: unknown) {
+      return { ...status.BAD_REQUEST, body: JSON.stringify({ message: (error as any).message }) }
     }
   } catch {
     return status.NOT_FOUND
   }
 }
 
-export const patchEmailHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
+export const patchEmailHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<string>> => {
   log('Received event', { ...event, body: undefined })
   try {
     const accountId = event.pathParameters?.accountId as string
@@ -55,7 +55,7 @@ export const patchEmailHandler = async (event: APIGatewayProxyEventV2): Promise<
     }
     const result = await patchById(accountId, emailId, patchOperations)
     return result
-  } catch (error: any) {
-    return { ...status.BAD_REQUEST, body: JSON.stringify({ message: error.message }) }
+  } catch (error: unknown) {
+    return { ...status.BAD_REQUEST, body: JSON.stringify({ message: (error as any).message }) }
   }
 }

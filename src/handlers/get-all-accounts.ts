@@ -3,7 +3,9 @@ import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../types'
 import { log, logError } from '../utils/logging'
 import status from '../utils/status'
 
-export const getAllAccountsHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
+export const getAllAccountsHandler = async (
+  event: APIGatewayProxyEventV2,
+): Promise<APIGatewayProxyResultV2<string>> => {
   log('Received event', event)
   try {
     const data = await getAccounts()

@@ -4,7 +4,7 @@ import { extractAccountFromEvent, validateUsernameInEvent } from '../utils/event
 import { log, logError } from '../utils/logging'
 import status from '../utils/status'
 
-export const putAccountHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
+export const putAccountHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<string>> => {
   log('Received event', { ...event, body: undefined })
   try {
     const accountId = event.pathParameters?.accountId as string
@@ -20,7 +20,7 @@ export const putAccountHandler = async (event: APIGatewayProxyEventV2): Promise<
       logError(error)
       return status.INTERNAL_SERVER_ERROR
     }
-  } catch (error: any) {
-    return { ...status.BAD_REQUEST, body: JSON.stringify({ message: error.message }) }
+  } catch (error: unknown) {
+    return { ...status.BAD_REQUEST, body: JSON.stringify({ message: (error as any).message }) }
   }
 }

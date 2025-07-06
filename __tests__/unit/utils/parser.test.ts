@@ -4,7 +4,7 @@ import { convertParsedContentsToEmail } from '@utils/parser'
 
 describe('parser', () => {
   describe('convertParsedContentsToEmail', () => {
-    test('expect contents converted correctly', async () => {
+    it('should convert contents correctly', async () => {
       const result = await convertParsedContentsToEmail(emailId, parsedContents)
 
       expect(result).toEqual({
@@ -54,7 +54,7 @@ describe('parser', () => {
       })
     })
 
-    test('expect default values', async () => {
+    it('should use default values when fields are missing', async () => {
       const reference = 'fnord'
       const tempContents = {
         ...parsedContents,

@@ -40,6 +40,9 @@ export const getAccountById = async (account: string): Promise<Account> => {
     TableName: dynamodbAccountsTableName,
   })
   const response = await dynamodb.send(command)
+  if (!response.Item?.Data?.S) {
+    throw new Error('Account not found')
+  }
   return JSON.parse(response.Item.Data.S)
 }
 
@@ -103,6 +106,9 @@ export const getReceivedById = async (account: string, id: string): Promise<Emai
     TableName: dynamodbReceivedTableName,
   })
   const response = await dynamodb.send(command)
+  if (!response.Item?.Data?.S) {
+    throw new Error('Email not found')
+  }
   return JSON.parse(response.Item.Data.S)
 }
 
@@ -179,6 +185,9 @@ export const getSentById = async (account: string, id: string): Promise<Email> =
     TableName: dynamodbSentTableName,
   })
   const response = await dynamodb.send(command)
+  if (!response.Item?.Data?.S) {
+    throw new Error('Email not found')
+  }
   return JSON.parse(response.Item.Data.S)
 }
 

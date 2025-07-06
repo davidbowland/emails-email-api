@@ -19,21 +19,21 @@ describe('get-all-emails', () => {
   })
 
   describe('getAllEmailsHandler', () => {
-    test("expect FORBIDDEN when user name doesn't match", async () => {
+    it("should return FORBIDDEN when user name doesn't match", async () => {
       jest.mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
       const result = await getAllEmailsHandler(event)
 
       expect(result).toEqual(status.FORBIDDEN)
     })
 
-    test('expect INTERNAL_SERVER_ERROR on getReceived reject', async () => {
+    it('should return INTERNAL_SERVER_ERROR on getReceived reject', async () => {
       jest.mocked(dynamodb).getReceived.mockRejectedValueOnce(undefined)
       const result = await getAllEmailsHandler(event)
 
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
 
-    test('expect OK and data', async () => {
+    it('should return OK with email data', async () => {
       const result = await getAllEmailsHandler(event)
 
       expect(result).toEqual({ ...status.OK, body: JSON.stringify(emailBatch) })

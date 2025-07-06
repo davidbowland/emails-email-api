@@ -10,12 +10,12 @@ export interface StringObject {
 export interface AttachmentCommon {
   checksum: string
   cid?: string
-  content: any
+  content: Buffer | { data: number[]; type: string }
   contentDisposition: string
   contentId?: string
   contentType: string
   filename?: string
-  headerLines: any
+  headerLines: Record<string, string>
   headers: StringObject
   related?: boolean
   size: number

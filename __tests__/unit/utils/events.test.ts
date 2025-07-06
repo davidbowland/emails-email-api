@@ -77,7 +77,7 @@ describe('events', () => {
     })
 
     describe('convertOutboundToEmail', () => {
-      test('expect outbound email converted', () => {
+      it('should convert outbound email correctly', () => {
         const result = convertOutboundToEmail(outboundEmail)
 
         expect(result).toEqual(
@@ -107,7 +107,7 @@ describe('events', () => {
         expect(result.timestamp).toBeDefined()
       })
 
-      test('expect outbound email converted with empty address', () => {
+      it('should convert outbound email with empty address', () => {
         const outboundWithEmpty = { ...outboundEmail, bcc: undefined, to: undefined }
         const result = convertOutboundToEmail(outboundWithEmpty)
 
@@ -132,7 +132,7 @@ describe('events', () => {
         type: 'application/pdf',
       }
 
-      test('expect formatted email', () => {
+      it('should format email correctly', () => {
         const emailWithAttachments = { ...email, attachments: [attachment], something: 'invalid' } as unknown as Email
         const formattedEmail = formatEmail(emailWithAttachments)
 
@@ -150,73 +150,73 @@ describe('events', () => {
         })
       })
 
-      test('expect error on invalid to', () => {
+      it('should throw error on invalid to', () => {
         const invalidEmail = { ...email, to: 'a string' } as unknown as Email
 
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
-      test('expect error on invalid cc', () => {
+      it('should throw error on invalid cc', () => {
         const invalidEmail = { ...email, cc: 'a string' } as unknown as Email
 
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
-      test('expect error on invalid bcc', () => {
+      it('should throw error on invalid bcc', () => {
         const invalidEmail = { ...email, bcc: 'a string' } as unknown as Email
 
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
-      test('expect error on missing to, cc, and bcc', () => {
+      it('should throw error on missing to, cc, and bcc', () => {
         const invalidEmail = { ...email, bcc: undefined, cc: undefined, to: undefined } as unknown as Email
 
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
-      test('expect error on invalid from', () => {
+      it('should throw error on invalid from', () => {
         const invalidEmail = { ...email, from: undefined } as unknown as Email
 
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
-      test('expect error on invalid subject', () => {
+      it('should throw error on invalid subject', () => {
         const invalidEmail = { ...email, subject: undefined } as unknown as Email
 
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
-      test('expect error on invalid attachments', () => {
+      it('should throw error on invalid attachments', () => {
         const invalidEmail = { ...email, attachments: 'a string' } as unknown as Email
 
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
-      test('expect error on invalid attachment filename', () => {
+      it('should throw error on invalid attachment filename', () => {
         const invalidEmail = { ...email, attachments: [{ ...attachment, filename: undefined }] } as unknown as Email
 
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
-      test('expect error on invalid attachment id', () => {
+      it('should throw error on invalid attachment id', () => {
         const invalidEmail = { ...email, attachments: [{ ...attachment, id: undefined }] } as unknown as Email
 
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
-      test('expect error on invalid attachment size', () => {
+      it('should throw error on invalid attachment size', () => {
         const invalidEmail = { ...email, attachments: [{ ...attachment, size: undefined }] } as unknown as Email
 
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
-      test('expect error on invalid attachment type', () => {
+      it('should throw error on invalid attachment type', () => {
         const invalidEmail = { ...email, attachments: [{ ...attachment, type: undefined }] } as unknown as Email
 
         expect(() => formatEmail(invalidEmail)).toThrow()
       })
 
-      test('expect timestamp when none provided', () => {
+      it('should add timestamp when none provided', () => {
         const emailWithoutTimestamp = { ...email, timestamp: undefined } as unknown as Email
         const formattedEmail = formatEmail(emailWithoutTimestamp)
 
@@ -227,7 +227,7 @@ describe('events', () => {
     describe('formatEmailOutbound', () => {
       const firstAttachment = outboundEmail.attachments[0]
 
-      test('expect formatted email', () => {
+      it('should format outbound email correctly', () => {
         const emailWithInvalid = { ...outboundEmail, something: 'invalid' } as unknown as EmailOutbound
         const formattedEmail = formatEmailOutbound(emailWithInvalid, from)
 
@@ -307,24 +307,24 @@ describe('events', () => {
         })
       })
 
-      test('expect error on invalid to', () => {
+      it('should throw error on invalid to', () => {
         const invalidEmail = { ...outboundEmail, to: 'a string' } as unknown as EmailOutbound
 
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
-      test('expect error on invalid cc', () => {
+      it('should throw error on invalid cc', () => {
         const invalidEmail = { ...outboundEmail, cc: 'a string' } as unknown as EmailOutbound
 
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
-      test('expect error on invalid bcc', () => {
+      it('should throw error on invalid bcc', () => {
         const invalidEmail = { ...outboundEmail, bcc: 'a string' } as unknown as EmailOutbound
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
-      test('expect error on missing to, cc, and bcc', () => {
+      it('should throw error on missing to, cc, and bcc', () => {
         const invalidEmail = {
           ...outboundEmail,
           bcc: undefined,
@@ -335,37 +335,37 @@ describe('events', () => {
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
-      test('expect error on invalid html', () => {
+      it('should throw error on invalid html', () => {
         const invalidEmail = { ...outboundEmail, html: undefined } as unknown as EmailOutbound
 
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
-      test('expect error on invalid references', () => {
+      it('should throw error on invalid references', () => {
         const invalidEmail = { ...outboundEmail, references: 'a string' } as unknown as EmailOutbound
 
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
-      test('expect error on invalid subject', () => {
+      it('should throw error on invalid subject', () => {
         const invalidEmail = { ...outboundEmail, subject: undefined } as unknown as EmailOutbound
 
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
-      test('expect error on invalid text', () => {
+      it('should throw error on invalid text', () => {
         const invalidEmail = { ...outboundEmail, text: undefined } as unknown as EmailOutbound
 
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
-      test('expect error on invalid attachments', () => {
+      it('should throw error on invalid attachments', () => {
         const invalidEmail = { ...outboundEmail, attachments: 'a string' } as unknown as EmailOutbound
 
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
-      test('expect error on invalid attachment content', () => {
+      it('should throw error on invalid attachment content', () => {
         const invalidEmail = {
           ...outboundEmail,
           attachments: [{ ...firstAttachment, content: undefined }],
@@ -374,7 +374,7 @@ describe('events', () => {
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
-      test('expect error on invalid attachment contentDisposition', () => {
+      it('should throw error on invalid attachment contentDisposition', () => {
         const invalidEmail = {
           ...outboundEmail,
           attachments: [{ ...firstAttachment, contentDisposition: undefined }],
@@ -383,7 +383,7 @@ describe('events', () => {
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
-      test('expect error on invalid attachment contentType', () => {
+      it('should throw error on invalid attachment contentType', () => {
         const invalidEmail = {
           ...outboundEmail,
           attachments: [{ ...firstAttachment, contentType: undefined }],
@@ -392,7 +392,7 @@ describe('events', () => {
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
-      test('expect error on invalid attachment headerLines', () => {
+      it('should throw error on invalid attachment headerLines', () => {
         const invalidEmail = {
           ...outboundEmail,
           attachments: [{ ...firstAttachment, headerLines: undefined }],
@@ -401,7 +401,7 @@ describe('events', () => {
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
-      test('expect error on invalid attachment headers', () => {
+      it('should throw error on invalid attachment headers', () => {
         const invalidEmail = {
           ...outboundEmail,
           attachments: [{ ...firstAttachment, headers: undefined }],
@@ -410,7 +410,7 @@ describe('events', () => {
         expect(() => formatEmailOutbound(invalidEmail, from)).toThrow()
       })
 
-      test('expect error on invalid attachment size', () => {
+      it('should throw error on invalid attachment size', () => {
         const invalidEmail = {
           ...outboundEmail,
           attachments: [{ ...firstAttachment, size: undefined }],
