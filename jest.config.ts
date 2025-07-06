@@ -90,7 +90,6 @@ export default {
     '^@events/(.*)$': '<rootDir>/events/$1',
     '^@handlers/(.*)$': '<rootDir>/src/handlers/$1',
     '^@services/(.*)$': '<rootDir>/src/services/$1',
-    '^@setup-server$': '<rootDir>/__tests__/setup-server',
     '^@types$': '<rootDir>/src/types',
     '^@utils/(.*)$': '<rootDir>/src/utils/$1',
   },
@@ -140,7 +139,7 @@ export default {
   setupFiles: ['<rootDir>/jest.setup-test-env.js'],
 
   // A list of paths to modules that run some code to configure or set up the testing framework before each test
-  setupFilesAfterEnv: ['<rootDir>/__tests__/setup-server.ts'],
+  // setupFilesAfterEnv: [],
 
   // The number of seconds after which a test is considered as slow and reported as such in the results.
   // slowTestThreshold: 5,
@@ -164,7 +163,7 @@ export default {
   // ],
 
   // An array of regexp pattern strings that are matched against all test paths, matched tests are skipped
-  testPathIgnorePatterns: ['__mocks__', 'setup-server'],
+  testPathIgnorePatterns: ['__mocks__'],
 
   // The regexp pattern or array of patterns that Jest uses to detect test files
   // testRegex: [],

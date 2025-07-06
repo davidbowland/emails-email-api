@@ -69,6 +69,12 @@ describe('dynamodb', () => {
 
         expect(result).toEqual(account)
       })
+
+      it('should throw error when account not found', async () => {
+        mockSend.mockResolvedValueOnce({ Item: null })
+
+        await expect(getAccountById(accountId)).rejects.toThrow('Account not found')
+      })
     })
 
     describe('getAccounts', () => {
@@ -155,6 +161,12 @@ describe('dynamodb', () => {
         const result = await getReceivedById(accountId, emailId)
 
         expect(result).toEqual(account)
+      })
+
+      it('should throw error when item not found', async () => {
+        mockSend.mockResolvedValueOnce({ Item: null })
+
+        await expect(getReceivedById(accountId, emailId)).rejects.toThrow('Email not found')
       })
     })
 
@@ -269,6 +281,12 @@ describe('dynamodb', () => {
         const result = await getSentById(accountId, emailId)
 
         expect(result).toEqual(account)
+      })
+
+      it('should throw error when email not found', async () => {
+        mockSend.mockResolvedValueOnce({ Item: null })
+
+        await expect(getSentById(accountId, emailId)).rejects.toThrow('Email not found')
       })
     })
 
