@@ -173,7 +173,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/delete-account.ts
@@ -236,7 +236,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/get-account-internal.ts
@@ -305,7 +305,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/get-account.ts
@@ -368,7 +368,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/get-all-accounts.ts
@@ -437,7 +437,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/patch-account.ts
@@ -506,7 +506,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/put-account.ts
@@ -580,7 +580,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/received/delete-email.ts
@@ -649,7 +649,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/received/get-all-emails.ts
@@ -718,7 +718,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/received/get-email.ts
@@ -787,7 +787,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/received/patch-email.ts
@@ -850,7 +850,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/received/put-email.ts
@@ -924,7 +924,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/received/attachments/get-attachment.ts
@@ -998,7 +998,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/received/contents/get-contents.ts
@@ -1072,7 +1072,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/sent/delete-email.ts
@@ -1141,7 +1141,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/sent/get-all-emails.ts
@@ -1210,7 +1210,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/sent/get-email.ts
@@ -1279,7 +1279,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/sent/patch-email.ts
@@ -1357,7 +1357,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/sent/post-email.ts
@@ -1431,7 +1431,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/sent/attachments/get-attachment.ts
@@ -1501,7 +1501,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/sent/attachments/post-attachment.ts
@@ -1575,7 +1575,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2020
+        Target: es2023
         Sourcemap: true
         EntryPoints:
           - src/handlers/sent/contents/get-contents.ts
