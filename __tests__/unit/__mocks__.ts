@@ -14,6 +14,7 @@ import {
 export const accountId = 'account'
 
 export const account: Account = {
+  bounceSenders: [],
   forwardTargets: ['any@domain.com'],
   name: 'Any',
 }

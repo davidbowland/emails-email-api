@@ -44,7 +44,7 @@ const patchById = async (
   }
 }
 
-export const patchAccountHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<string>> => {
+export const patchAccountHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
   log('Received event', { ...event, body: undefined })
   try {
     const accountId = event.pathParameters?.accountId as string
@@ -53,7 +53,14 @@ export const patchAccountHandler = async (event: APIGatewayProxyEventV2): Promis
     }
 
     const patchOperations = extractJsonPatchFromEvent(event)
-    if (!patchOperations.every((value) => value.path.startsWith('/forwardTargets/') || value.path === '/name')) {
+    if (
+      !patchOperations.every(
+        (value) =>
+          value.path.startsWith('/forwardTargets/') ||
+          value.path.startsWith('/bounceSenders/') ||
+          value.path === '/name',
+      )
+    ) {
       return status.FORBIDDEN
     }
     const result = await patchById(accountId, patchOperations)

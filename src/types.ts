@@ -28,6 +28,7 @@ export interface AttachmentContents {
 }
 
 export interface Account {
+  bounceSenders: string[]
   forwardTargets: string[]
   name: string
 }

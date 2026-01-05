@@ -1,5 +1,5 @@
 {
-  "body": "{\"forwardTargets\":[\"any@domain.com\"],\"name\":\"Any\"}",
+  "body": "{\"bounceSenders\":[],\"forwardTargets\":[\"any@domain.com\"],\"name\":\"Any\"}",
   "headers": {
     "authorization": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL2NvZ25pdG8taWRwLnVzLWVhc3QtMi5hbWF6b25hd3MuY29tL3VzLWVhc3QtMl94cXh6eUlPejQiLCJpYXQiOjE2NjY2NzYwMDMsImV4cCI6MTY5ODIxMjAwMywiYXVkIjoiZW1haWxzLmRib3dsYW5kLmNvbSIsInN1YiI6ImVmZDMxYjY3LTE5ZjItNGQwYS1hNzIzLTc4NTA2ZmZjMGI3ZSIsImNvZ25pdG86dXNlcm5hbWUiOiJhZG1pbiJ9.SIE7jTipsDS31fQTOcMHWTLfdqJ5lq0Zkn6AtVT6hAQ"
   },

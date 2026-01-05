@@ -87,7 +87,9 @@ describe('dynamodb', () => {
       test('expect data parsed and returned', async () => {
         const result = await getAccounts()
 
-        expect(result).toEqual([{ data: { forwardTargets: ['any@domain.com'], name: 'Any' }, id: 'account' }])
+        expect(result).toEqual([
+          { data: { bounceSenders: [], forwardTargets: ['any@domain.com'], name: 'Any' }, id: 'account' },
+        ])
       })
 
       test('expect empty object with no data returned', async () => {

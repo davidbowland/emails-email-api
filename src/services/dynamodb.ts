@@ -18,6 +18,12 @@ const dynamodb = xrayCapture(new DynamoDBClient({ apiVersion: '2012-08-10' }))
 
 /* Accounts */
 
+const normalizeLegacyAccount = (account: Partial<Account>): Account =>
+  ({
+    bounceSenders: [],
+    ...account,
+  }) as Account
+
 export const deleteAccountById = async (account: string): Promise<DeleteItemOutput> => {
   const command = new DeleteItemCommand({
     Key: {
@@ -43,12 +49,15 @@ export const getAccountById = async (account: string): Promise<Account> => {
   if (!response.Item?.Data?.S) {
     throw new Error('Account not found')
   }
-  return JSON.parse(response.Item.Data.S)
+  return normalizeLegacyAccount(JSON.parse(response.Item.Data.S))
 }
 
 const getAccountsFromScan = (response: ScanOutput): AccountBatch[] =>
   response.Items?.reduce(
-    (result, item) => [...result, { data: JSON.parse(item.Data.S as string), id: item.Account.S as string }],
+    (result, item) => [
+      ...result,
+      { data: normalizeLegacyAccount(JSON.parse(item.Data.S as string)), id: item.Account.S as string },
+    ],
     [] as AccountBatch[],
   ) as AccountBatch[]
 

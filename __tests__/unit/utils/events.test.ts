@@ -31,7 +31,7 @@ describe('events', () => {
         const accountWithExtra = { ...account, something: 'invalid' } as unknown as Account
         const formattedAccount = formatAccount(accountWithExtra)
 
-        expect(formattedAccount).toEqual({ forwardTargets: ['any@domain.com'], name: 'Any' })
+        expect(formattedAccount).toEqual({ bounceSenders: [], forwardTargets: ['any@domain.com'], name: 'Any' })
       })
 
       it.each([undefined, 'a string'])('should throw error on invalid forwardTargets - %s', (forwardTargets) => {
@@ -42,6 +42,12 @@ describe('events', () => {
 
       it.each([undefined, ''])('should throw error on invalid name - %s', (name) => {
         const invalidAccount = { ...account, name } as unknown as Account
+
+        expect(() => formatAccount(invalidAccount)).toThrow()
+      })
+
+      it.each([undefined, 'a string'])('should throw error on invalid bounceSenders - %s', (bounceSenders) => {
+        const invalidAccount = { ...account, bounceSenders } as unknown as Account
 
         expect(() => formatAccount(invalidAccount)).toThrow()
       })

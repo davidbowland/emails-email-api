@@ -17,14 +17,18 @@ import {
 /* Account */
 
 export const formatAccount = (account: Account): Account => {
+  if (!Array.isArray(account.bounceSenders)) {
+    throw new Error('bounceSenders must be an array of email addresses or domains')
+  }
   if (!Array.isArray(account.forwardTargets)) {
     throw new Error('forwardTargets must be an array of email addresses')
   }
   if (!account.name) {
-    throw new Error('name must be defined must be an array of email addresses')
+    throw new Error('name must be defined')
   }
 
   return {
+    bounceSenders: account.bounceSenders,
     forwardTargets: account.forwardTargets,
     name: account.name,
   }

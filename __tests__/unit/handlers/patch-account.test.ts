@@ -69,6 +69,17 @@ describe('patch-account', () => {
       expect(result).toEqual(status.FORBIDDEN)
     })
 
+    test('expect OK when patch operation is bounceSenders', async () => {
+      jest
+        .mocked(events)
+        .extractJsonPatchFromEvent.mockReturnValueOnce([
+          { op: 'add', path: '/bounceSenders/0', value: 'spam@example.com' },
+        ] as unknown[] as PatchOperation[])
+      const result = await patchAccountHandler(event)
+
+      expect(result.statusCode).toEqual(status.OK.statusCode)
+    })
+
     test('expect NOT_FOUND on getAccountById reject', async () => {
       jest.mocked(dynamodb).getAccountById.mockRejectedValueOnce(undefined)
       const result = await patchAccountHandler(event)
