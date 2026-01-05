@@ -79,5 +79,26 @@ describe('post-bounce', () => {
       expect(dynamodb.setReceivedById).toHaveBeenCalledWith(accountId, emailId, { ...email, bounced: true })
       expect(result).toEqual({ ...status.OK, body: JSON.stringify({ messageId }) })
     })
+
+    it('should find bounce sender with case-insensitive matching', async () => {
+      const emailWithMixedCase = {
+        ...email,
+        to: ['other@domain.com', 'ACCOUNT@domain.com', 'another@domain.com'],
+      }
+      jest.mocked(dynamodb).getReceivedById.mockResolvedValueOnce(emailWithMixedCase)
+
+      const result = await bounceEmailHandler(event)
+
+      expect(queue.bounceEmail).toHaveBeenCalledWith({
+        bounceSender: 'ACCOUNT@domain.com',
+        messageId: emailId,
+        recipients: emailWithMixedCase.to,
+      })
+      expect(dynamodb.setReceivedById).toHaveBeenCalledWith(accountId, emailId, {
+        ...emailWithMixedCase,
+        bounced: true,
+      })
+      expect(result).toEqual({ ...status.OK, body: JSON.stringify({ messageId }) })
+    })
   })
 })

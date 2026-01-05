@@ -15,8 +15,9 @@ const performBounce = async (
       return status.BAD_REQUEST
     }
 
+    const lowercaseAccountId = accountId.toLowerCase()
     const { messageId } = await bounceEmail({
-      bounceSender: email.to.find((to) => to.startsWith(`${accountId}@`)) as string,
+      bounceSender: email.to.find((to) => to.toLowerCase().startsWith(`${lowercaseAccountId}@`)) as string,
       messageId: emailId,
       recipients: email.to,
     })
