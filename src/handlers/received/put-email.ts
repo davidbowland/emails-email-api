@@ -4,7 +4,7 @@ import { extractEmailFromEvent } from '../../utils/events'
 import { log, logError } from '../../utils/logging'
 import status from '../../utils/status'
 
-export const putEmailHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<string>> => {
+export const putEmailHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
   log('Received event', { ...event, body: undefined })
   try {
     const accountId = event.pathParameters?.accountId as string

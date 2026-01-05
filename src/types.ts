@@ -7,6 +7,8 @@ export interface StringObject {
   [key: string]: string
 }
 
+// Attachments
+
 export interface AttachmentCommon {
   checksum: string
   cid?: string
@@ -27,6 +29,8 @@ export interface AttachmentContents {
   metadata?: Record<string, string>
 }
 
+// Accounts
+
 export interface Account {
   bounceSenders: string[]
   forwardTargets: string[]
@@ -38,6 +42,8 @@ export interface AccountBatch {
   id: string
 }
 
+// Emails
+
 export interface EmailAttachment {
   filename: string
   id: string
@@ -48,6 +54,7 @@ export interface EmailAttachment {
 export interface Email {
   attachments?: EmailAttachment[]
   bcc?: string[]
+  bounced?: boolean
   cc?: string[]
   from: string
   subject: string
@@ -119,9 +126,30 @@ export interface EmailOutbound {
   to: EmailAddress[]
 }
 
-export interface EmailResponse {
+// Bounces
+
+export interface BounceOutbound {
+  messageId: string
+  recipients: string[]
+  bounceSender: string
+  bounceType?: BounceType
+}
+
+export type BounceType =
+  | 'ContentRejected'
+  | 'DoesNotExist'
+  | 'ExceededQuota'
+  | 'MessageTooLarge'
+  | 'TemporaryFailure'
+  | 'Undefined'
+
+// Queue API
+
+export interface QueueResponse {
   messageId: string
 }
+
+// Signed URLs
 
 export interface PostSignedUrl {
   fields: StringObject

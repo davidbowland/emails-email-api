@@ -5,7 +5,7 @@ import status from '../utils/status'
 
 export const getAccountInternalHandler = async (
   event: APIGatewayProxyEventV2,
-): Promise<APIGatewayProxyResultV2<string>> => {
+): Promise<APIGatewayProxyResultV2<any>> => {
   log('Received event', { ...event, body: undefined })
   const accountId = event.pathParameters?.accountId as string
 

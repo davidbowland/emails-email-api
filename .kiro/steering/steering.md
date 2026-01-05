@@ -52,16 +52,16 @@ Its purpose is to manage email accounts and handle both received and sent emails
 - Each handler has a json event file as an example of its input
 - These files are used by tests
 
-### __tests__/unit/**mocks**.ts
+### **tests**/unit/**mocks**.ts
 
 - Mock data that is either shared or too large to reasonably be within a test file (> 25 lines)
 - Use typing, when possible, to ensure data is complete
 
-### __tests__/unit/\*\*/\*\*\*
+### **tests**/unit/\*\*/\*\*\*
 
 - Test files for all files in the src/ directory that are executable (excluding config and types)
 
-### __tests__/tsconfig.json
+### **tests**/tsconfig.json
 
 - If adding a new directory within src/, `paths` in tsconfig need to be updated
 
@@ -91,12 +91,10 @@ Use the logging utilities from `src/utils/logging.ts`:
 ```typescript
 // Logging Levels and Usage:
 // - log(): For informational messages (S3 uploads, processing steps)
-// - logWarn(): For recoverable issues (missing optional data, fallbacks)
 // - logError(): For exceptions that require admin attention (sends text message)
 
 // Examples:
 log('Processing email request', { accountId, emailId, action: 'get' })
-logWarn('Missing optional field', { accountId, field: 'displayName' })
 logError('Failed to retrieve email', { accountId, emailId, error: error.message })
 
 // NEVER log PII - use sanitized identifiers:
@@ -187,7 +185,6 @@ jest.mock('@aws-sdk/client-s3', () => ({
 // Always mock the xrayCapture utility:
 jest.mock('@utils/logging', () => ({
   log: jest.fn(),
-  logWarn: jest.fn(),
   logError: jest.fn(),
   xrayCapture: jest.fn().mockImplementation((x) => x),
 }))

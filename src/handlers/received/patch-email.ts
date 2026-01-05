@@ -12,7 +12,7 @@ const applyJsonPatch = async (
   accountId: string,
   emailId: string,
   patchOperations: PatchOperation[],
-): Promise<APIGatewayProxyResultV2<string>> => {
+): Promise<APIGatewayProxyResultV2<any>> => {
   const updatedEmail = applyPatch(email, patchOperations, throwOnInvalidJsonPatch, mutateObjectOnJsonPatch).newDocument
   try {
     await setReceivedById(accountId, emailId, updatedEmail)
@@ -27,7 +27,7 @@ const patchById = async (
   accountId: string,
   emailId: string,
   patchOperations: PatchOperation[],
-): Promise<APIGatewayProxyResultV2<string>> => {
+): Promise<APIGatewayProxyResultV2<any>> => {
   try {
     const email = await getReceivedById(accountId, emailId)
     try {
@@ -40,7 +40,7 @@ const patchById = async (
   }
 }
 
-export const patchEmailHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<string>> => {
+export const patchEmailHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
   log('Received event', { ...event, body: undefined })
   try {
     const accountId = event.pathParameters?.accountId as string

@@ -174,6 +174,8 @@ export const outboundEmail: EmailOutbound = {
   to: [{ address: 'another@domain.com', name: 'Someone else' }],
 }
 
+export const messageId = 'a-very-queued-id'
+
 export const parsedContents = {
   attachments: [
     {

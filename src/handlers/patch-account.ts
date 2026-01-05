@@ -11,7 +11,7 @@ const applyJsonPatch = async (
   account: Account,
   accountId: string,
   patchOperations: PatchOperation[],
-): Promise<APIGatewayProxyResultV2<string>> => {
+): Promise<APIGatewayProxyResultV2<any>> => {
   const updatedAccount = applyPatch(
     account,
     patchOperations,
@@ -30,7 +30,7 @@ const applyJsonPatch = async (
 const patchById = async (
   accountId: string,
   patchOperations: PatchOperation[],
-): Promise<APIGatewayProxyResultV2<string>> => {
+): Promise<APIGatewayProxyResultV2<any>> => {
   try {
     const account = await getAccountById(accountId)
     try {
