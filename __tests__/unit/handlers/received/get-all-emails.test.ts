@@ -36,7 +36,14 @@ describe('get-all-emails', () => {
     it('should return OK with email data', async () => {
       const result = await getAllEmailsHandler(event)
 
-      expect(result).toEqual({ ...status.OK, body: JSON.stringify(emailBatch) })
+      const expectedEmailBatch = emailBatch.map((batch) => ({
+        ...batch,
+        data: {
+          ...batch.data,
+          canBeBounced: false,
+        },
+      }))
+      expect(result).toEqual({ ...status.OK, body: JSON.stringify(expectedEmailBatch) })
     })
   })
 })
