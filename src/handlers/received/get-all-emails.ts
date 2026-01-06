@@ -1,5 +1,6 @@
 import { getReceived } from '../../services/dynamodb'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../types'
+import { canEmailBeBounced } from '../../utils/email'
 import { validateUsernameInEvent } from '../../utils/events'
 import { log, logError } from '../../utils/logging'
 import status from '../../utils/status'
@@ -13,7 +14,14 @@ export const getAllEmailsHandler = async (event: APIGatewayProxyEventV2): Promis
     }
 
     const data = await getReceived(accountId)
-    return { ...status.OK, body: JSON.stringify(data) }
+    const dataWithCanBeBounced = data.map((emailBatch) => ({
+      ...emailBatch,
+      data: {
+        ...emailBatch.data,
+        canBeBounced: canEmailBeBounced(emailBatch.data),
+      },
+    }))
+    return { ...status.OK, body: JSON.stringify(dataWithCanBeBounced) }
   } catch (error) {
     logError(error)
     return status.INTERNAL_SERVER_ERROR

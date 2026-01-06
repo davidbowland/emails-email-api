@@ -1,5 +1,6 @@
 import { getReceivedById } from '../../services/dynamodb'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../types'
+import { canEmailBeBounced } from '../../utils/email'
 import { validateUsernameInEvent } from '../../utils/events'
 import { log, logError } from '../../utils/logging'
 import status from '../../utils/status'
@@ -15,7 +16,8 @@ export const getEmailHandler = async (event: APIGatewayProxyEventV2): Promise<AP
 
     try {
       const data = await getReceivedById(accountId, emailId)
-      return { ...status.OK, body: JSON.stringify({ ...data, accountId, id: emailId }) }
+      const canBeBounced = canEmailBeBounced(data)
+      return { ...status.OK, body: JSON.stringify({ ...data, accountId, canBeBounced, id: emailId }) }
     } catch (error) {
       return status.NOT_FOUND
     }

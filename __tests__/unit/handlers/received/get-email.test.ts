@@ -45,7 +45,10 @@ describe('get-email', () => {
     it('should return OK when email exists', async () => {
       const result = await getEmailHandler(event)
 
-      expect(result).toEqual({ ...status.OK, body: JSON.stringify({ ...email, accountId, id: emailId }) })
+      expect(result).toEqual({
+        ...status.OK,
+        body: JSON.stringify({ ...email, accountId, canBeBounced: false, id: emailId }),
+      })
     })
   })
 })
