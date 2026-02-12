@@ -90,7 +90,7 @@ describe('post-bounce', () => {
       const result = await bounceEmailHandler(event)
 
       expect(queue.bounceEmail).toHaveBeenCalledWith({
-        bounceSender: 'ACCOUNT@domain.com',
+        bounceSender: 'account@domain.com',
         messageId: emailId,
         recipients: emailWithMixedCase.to,
       })

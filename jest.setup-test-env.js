@@ -11,7 +11,7 @@ process.env.DYNAMODB_SENT_TABLE_NAME = 'sent-table'
 
 // Email
 
-process.env.EMAIL_DOMAIN = 'bowland.link'
+process.env.EMAIL_DOMAIN = 'domain.com'
 
 // S3
 

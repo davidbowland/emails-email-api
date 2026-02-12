@@ -1,3 +1,4 @@
+import { emailDomain } from '../../config'
 import { getReceivedById, setReceivedById } from '../../services/dynamodb'
 import { bounceEmail } from '../../services/queue'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2, Email } from '../../types'
@@ -15,9 +16,8 @@ const performBounce = async (
       return status.BAD_REQUEST
     }
 
-    const lowercaseAccountId = accountId.toLowerCase()
     const { messageId } = await bounceEmail({
-      bounceSender: email.to.find((to) => to.toLowerCase().startsWith(`${lowercaseAccountId}@`)) as string,
+      bounceSender: `${accountId}@${emailDomain}`,
       messageId: emailId,
       recipients: email.to,
     })
