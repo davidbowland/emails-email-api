@@ -62,6 +62,40 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
+
+      - name: Debug Docker Daemon Status
+        run: |
+          echo "--- Docker Info ---"
+          docker info || echo "Docker info command failed"
+
+          echo "--- Docker Socket Permissions ---"
+          ls -la /var/run/docker.sock || echo "Docker socket not found"
+
+          echo "--- User Groups ---"
+          groups
+
+          echo "--- Docker Service Status ---"
+          sudo systemctl status docker --no-pager || echo "Could not get systemd status"
+
+          echo "--- Connectivity Check ---"
+          docker pull hello-world && echo "Daemon is reachable" || echo "Daemon unreachable"
+
+      - name: Fix AWS SAM - Downgrade Docker to v28
+        run: |
+          sudo apt-get update
+          # Find the latest available v28 version for Moby
+          VERSION=$(apt-cache madison moby-engine | grep '28\.' | head -n 1 | awk '{print $3}')
+          echo "Downgrading to Moby version: $VERSION"
+
+          sudo apt-get install -y --allow-downgrades \
+            moby-engine=$VERSION \
+            moby-cli=$VERSION \
+            moby-buildx \
+            moby-compose
+
+          sudo systemctl restart docker
+          docker version --format '{{.Server.Version}}'
+
       - name: Build resources
         run: sam build --template ${SAM_TEMPLATE} --use-container --container-env-var NODE_ENV=production
 
@@ -107,6 +141,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
+
       - name: Build resources
         run: sam build --template ${SAM_TEMPLATE} --use-container --container-env-var NODE_ENV=production
 
