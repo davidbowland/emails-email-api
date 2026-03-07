@@ -6,6 +6,16 @@ import { validateUsernameInEvent } from '../../utils/events'
 import { log, logError } from '../../utils/logging'
 import status from '../../utils/status'
 
+const determineBounceSender = (accountAddress: string, email: Email): string => {
+  const recipients = email.to.concat(email.cc ?? []).concat(email.bcc ?? [])
+  if (recipients.indexOf(accountAddress) >= 0) {
+    return accountAddress
+  }
+  const domainEnding = `@${emailDomain}`
+  const addressInDomain = recipients.find((address) => address.endsWith(domainEnding))
+  return addressInDomain ?? accountAddress
+}
+
 const performBounce = async (
   accountId: string,
   emailId: string,
@@ -16,8 +26,9 @@ const performBounce = async (
       return status.BAD_REQUEST
     }
 
+    const bounceSender = determineBounceSender(`${accountId}@${emailDomain}`, email)
     const { messageId } = await bounceEmail({
-      bounceSender: `${accountId}@${emailDomain}`,
+      bounceSender,
       messageId: emailId,
       recipients: email.to,
     })

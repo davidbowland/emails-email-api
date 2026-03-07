@@ -883,6 +883,7 @@ Resources:
       Environment:
         Variables:
           DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable
+          EMAIL_DOMAIN: !FindInMap [EnvironmentMap, !Ref Environment, domainEmail]
           QUEUE_API_KEY: !Ref QueueApiKey
           QUEUE_API_URL: !FindInMap [EnvironmentMap, !Ref Environment, queueApiUrl]
       Events:

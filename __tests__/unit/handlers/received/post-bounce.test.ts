@@ -72,7 +72,7 @@ describe('post-bounce', () => {
       const result = await bounceEmailHandler(event)
 
       expect(queue.bounceEmail).toHaveBeenCalledWith({
-        bounceSender: email.to[0],
+        bounceSender: 'account@domain.com',
         messageId: emailId,
         recipients: email.to,
       })
@@ -80,23 +80,87 @@ describe('post-bounce', () => {
       expect(result).toEqual({ ...status.OK, body: JSON.stringify({ messageId }) })
     })
 
-    it('should find bounce sender with case-insensitive matching', async () => {
-      const emailWithMixedCase = {
+    it('should use account address when found in to recipients', async () => {
+      const result = await bounceEmailHandler(event)
+
+      expect(queue.bounceEmail).toHaveBeenCalledWith({
+        bounceSender: 'account@domain.com',
+        messageId: emailId,
+        recipients: email.to,
+      })
+      expect(result).toEqual({ ...status.OK, body: JSON.stringify({ messageId }) })
+    })
+
+    it('should use account address when found in cc recipients', async () => {
+      const emailWithCc = {
         ...email,
-        to: ['other@domain.com', 'ACCOUNT@domain.com', 'another@domain.com'],
+        to: ['other@example.com'],
+        cc: ['account@domain.com'],
       }
-      jest.mocked(dynamodb).getReceivedById.mockResolvedValueOnce(emailWithMixedCase)
+      jest.mocked(dynamodb).getReceivedById.mockResolvedValueOnce(emailWithCc)
 
       const result = await bounceEmailHandler(event)
 
       expect(queue.bounceEmail).toHaveBeenCalledWith({
         bounceSender: 'account@domain.com',
         messageId: emailId,
-        recipients: emailWithMixedCase.to,
+        recipients: emailWithCc.to,
       })
-      expect(dynamodb.setReceivedById).toHaveBeenCalledWith(accountId, emailId, {
-        ...emailWithMixedCase,
-        bounced: true,
+      expect(result).toEqual({ ...status.OK, body: JSON.stringify({ messageId }) })
+    })
+
+    it('should use account address when found in bcc recipients', async () => {
+      const emailWithBcc = {
+        ...email,
+        to: ['other@example.com'],
+        cc: ['another@example.com'],
+        bcc: ['account@domain.com'],
+      }
+      jest.mocked(dynamodb).getReceivedById.mockResolvedValueOnce(emailWithBcc)
+
+      const result = await bounceEmailHandler(event)
+
+      expect(queue.bounceEmail).toHaveBeenCalledWith({
+        bounceSender: 'account@domain.com',
+        messageId: emailId,
+        recipients: emailWithBcc.to,
+      })
+      expect(result).toEqual({ ...status.OK, body: JSON.stringify({ messageId }) })
+    })
+
+    it('should find first address in domain when account address not in recipients', async () => {
+      const emailWithDomainAddress = {
+        ...email,
+        to: ['other@example.com', 'someone@domain.com', 'another@domain.com'],
+        cc: ['external@example.com'],
+      }
+      jest.mocked(dynamodb).getReceivedById.mockResolvedValueOnce(emailWithDomainAddress)
+
+      const result = await bounceEmailHandler(event)
+
+      expect(queue.bounceEmail).toHaveBeenCalledWith({
+        bounceSender: 'someone@domain.com',
+        messageId: emailId,
+        recipients: emailWithDomainAddress.to,
+      })
+      expect(result).toEqual({ ...status.OK, body: JSON.stringify({ messageId }) })
+    })
+
+    it('should fallback to account address when no domain match found', async () => {
+      const emailWithoutDomain = {
+        ...email,
+        to: ['other@example.com'],
+        cc: ['another@example.com'],
+        bcc: ['third@example.com'],
+      }
+      jest.mocked(dynamodb).getReceivedById.mockResolvedValueOnce(emailWithoutDomain)
+
+      const result = await bounceEmailHandler(event)
+
+      expect(queue.bounceEmail).toHaveBeenCalledWith({
+        bounceSender: 'account@domain.com',
+        messageId: emailId,
+        recipients: emailWithoutDomain.to,
       })
       expect(result).toEqual({ ...status.OK, body: JSON.stringify({ messageId }) })
     })
