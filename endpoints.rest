@@ -3,19 +3,19 @@
 ## Accounts
 
 ### Get all accounts
-GET https://emails-email-api.dbowland.com/v1/accounts HTTP/1.1
+GET https://{{emailsEmailDomain}}/v1/accounts HTTP/1.1
 x-api-key: {{apiKey}}
 
 ### Get account
-GET https://emails-email-api.dbowland.com/v1/accounts/account HTTP/1.1
+GET https://{{emailsEmailDomain}}/v1/accounts/account HTTP/1.1
 Authorization: Bearer {{authToken}}
 
 ### Get account (internal)
-GET https://emails-email-api.dbowland.com/v1/accounts/account/internal HTTP/1.1
+GET https://{{emailsEmailDomain}}/v1/accounts/account/internal HTTP/1.1
 x-api-key: {{apiKey}}
 
 ### Create/update account
-PUT https://emails-email-api.dbowland.com/v1/accounts/account HTTP/1.1
+PUT https://{{emailsEmailDomain}}/v1/accounts/account HTTP/1.1
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
@@ -25,35 +25,35 @@ Content-Type: application/json
 }
 
 ### Update account
-PATCH https://emails-email-api.dbowland.com/v1/accounts/account HTTP/1.1
+PATCH https://{{emailsEmailDomain}}/v1/accounts/account HTTP/1.1
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
 [{"op":"add","path":"/forwardTargets/1","value":"another@domain.com"}]
 
 ### Delete account
-DELETE https://emails-email-api.dbowland.com/v1/accounts/account HTTP/1.1
+DELETE https://{{emailsEmailDomain}}/v1/accounts/account HTTP/1.1
 Authorization: Bearer {{authToken}}
 
 ## Received Emails
 
 ### Get all received emails
-GET https://emails-email-api.dbowland.com/v1/accounts/account/emails/received HTTP/1.1
+GET https://{{emailsEmailDomain}}/v1/accounts/account/emails/received HTTP/1.1
 Authorization: Bearer {{authToken}}
 
 ### Get received email
-GET https://emails-email-api.dbowland.com/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y HTTP/1.1
+GET https://{{emailsEmailDomain}}/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y HTTP/1.1
 Authorization: Bearer {{authToken}}
 
 ### Update received email
-PATCH https://emails-email-api.dbowland.com/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y HTTP/1.1
+PATCH https://{{emailsEmailDomain}}/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y HTTP/1.1
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
 [{"op":"replace","path":"/viewed","value":true}]
 
 ### Create/update received email
-PUT https://emails-email-api.dbowland.com/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y HTTP/1.1
+PUT https://{{emailsEmailDomain}}/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y HTTP/1.1
 x-api-key: {{apiKey}}
 Content-Type: application/json
 
@@ -68,32 +68,32 @@ Content-Type: application/json
 }
 
 ### Delete received email
-DELETE https://emails-email-api.dbowland.com/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y HTTP/1.1
+DELETE https://{{emailsEmailDomain}}/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y HTTP/1.1
 Authorization: Bearer {{authToken}}
 
 ### Bounce received email
-POST https://emails-email-api.dbowland.com/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y/bounce HTTP/1.1
+POST https://{{emailsEmailDomain}}/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y/bounce HTTP/1.1
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
 {}
 
 ### Get received email contents
-GET https://emails-email-api.dbowland.com/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y/contents HTTP/1.1
+GET https://{{emailsEmailDomain}}/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y/contents HTTP/1.1
 Authorization: Bearer {{authToken}}
 
 ### Get received email attachment
-GET https://emails-email-api.dbowland.com/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y/attachments/attachment-id HTTP/1.1
+GET https://{{emailsEmailDomain}}/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y/attachments/attachment-id HTTP/1.1
 Authorization: Bearer {{authToken}}
 
 ## Sent Emails
 
 ### Get all sent emails
-GET https://emails-email-api.dbowland.com/v1/accounts/account/emails/sent HTTP/1.1
+GET https://{{emailsEmailDomain}}/v1/accounts/account/emails/sent HTTP/1.1
 Authorization: Bearer {{authToken}}
 
 ### Send email
-POST https://emails-email-api.dbowland.com/v1/accounts/account/emails/sent HTTP/1.1
+POST https://{{emailsEmailDomain}}/v1/accounts/account/emails/sent HTTP/1.1
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
@@ -111,30 +111,30 @@ Content-Type: application/json
 }
 
 ### Get sent email
-GET https://emails-email-api.dbowland.com/v1/accounts/account/emails/sent/7yh8g-7ytguy-98ui8u-5efka-87y87y HTTP/1.1
+GET https://{{emailsEmailDomain}}/v1/accounts/account/emails/sent/7yh8g-7ytguy-98ui8u-5efka-87y87y HTTP/1.1
 Authorization: Bearer {{authToken}}
 
 ### Update sent email
-PATCH https://emails-email-api.dbowland.com/v1/accounts/account/emails/sent/7yh8g-7ytguy-98ui8u-5efka-87y87y HTTP/1.1
+PATCH https://{{emailsEmailDomain}}/v1/accounts/account/emails/sent/7yh8g-7ytguy-98ui8u-5efka-87y87y HTTP/1.1
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
 [{"op":"replace","path":"/status","value":"sent"}]
 
 ### Delete sent email
-DELETE https://emails-email-api.dbowland.com/v1/accounts/account/emails/sent/7yh8g-7ytguy-98ui8u-5efka-87y87y HTTP/1.1
+DELETE https://{{emailsEmailDomain}}/v1/accounts/account/emails/sent/7yh8g-7ytguy-98ui8u-5efka-87y87y HTTP/1.1
 Authorization: Bearer {{authToken}}
 
 ### Get sent email contents
-GET https://emails-email-api.dbowland.com/v1/accounts/account/emails/sent/7yh8g-7ytguy-98ui8u-5efka-87y87y/contents HTTP/1.1
+GET https://{{emailsEmailDomain}}/v1/accounts/account/emails/sent/7yh8g-7ytguy-98ui8u-5efka-87y87y/contents HTTP/1.1
 Authorization: Bearer {{authToken}}
 
 ### Get sent email attachment
-GET https://emails-email-api.dbowland.com/v1/accounts/account/emails/sent/7yh8g-7ytguy-98ui8u-5efka-87y87y/attachments/attachment-id HTTP/1.1
+GET https://{{emailsEmailDomain}}/v1/accounts/account/emails/sent/7yh8g-7ytguy-98ui8u-5efka-87y87y/attachments/attachment-id HTTP/1.1
 Authorization: Bearer {{authToken}}
 
 ### Upload sent email attachment
-POST https://emails-email-api.dbowland.com/v1/accounts/account/emails/sent/attachments HTTP/1.1
+POST https://{{emailsEmailDomain}}/v1/accounts/account/emails/sent/attachments HTTP/1.1
 Authorization: Bearer {{authToken}}
 Content-Type: multipart/form-data
 
