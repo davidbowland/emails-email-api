@@ -136,7 +136,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/delete-account.deleteAccountHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -173,7 +173,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/delete-account.ts
@@ -204,7 +204,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/get-account-internal.getAccountInternalHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -235,7 +235,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/get-account-internal.ts
@@ -266,7 +266,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/get-account.getAccountHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -303,7 +303,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/get-account.ts
@@ -334,7 +334,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/get-all-accounts.getAllAccountsHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -365,7 +365,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/get-all-accounts.ts
@@ -396,7 +396,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/patch-account.patchAccountHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -433,7 +433,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/patch-account.ts
@@ -464,7 +464,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/put-account.putAccountHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -501,7 +501,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/put-account.ts
@@ -534,7 +534,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/received/delete-email.deleteEmailHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -574,7 +574,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/received/delete-email.ts
@@ -605,7 +605,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/received/get-all-emails.getAllEmailsHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -642,7 +642,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/received/get-all-emails.ts
@@ -673,7 +673,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/received/get-email.getEmailHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -710,7 +710,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/received/get-email.ts
@@ -741,7 +741,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/received/patch-email.patchEmailHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -778,7 +778,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/received/patch-email.ts
@@ -809,7 +809,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/received/put-email.putEmailHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -840,7 +840,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/received/put-email.ts
@@ -871,7 +871,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/received/post-bounce.bounceEmailHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -911,7 +911,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/received/post-bounce.ts
@@ -944,7 +944,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/received/attachments/get-attachment.getAttachmentHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -984,7 +984,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/received/attachments/get-attachment.ts
@@ -1017,7 +1017,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/received/contents/get-contents.getContentsHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -1057,7 +1057,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/received/contents/get-contents.ts
@@ -1090,7 +1090,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/sent/delete-email.deleteEmailHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -1130,7 +1130,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/sent/delete-email.ts
@@ -1161,7 +1161,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/sent/get-all-emails.getAllEmailsHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -1198,7 +1198,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/sent/get-all-emails.ts
@@ -1229,7 +1229,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/sent/get-email.getEmailHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -1266,7 +1266,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/sent/get-email.ts
@@ -1297,7 +1297,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/sent/patch-email.patchEmailHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -1334,7 +1334,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/sent/patch-email.ts
@@ -1365,7 +1365,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/sent/post-email.postEmailHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -1411,7 +1411,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/sent/post-email.ts
@@ -1444,7 +1444,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/sent/attachments/get-attachment.getAttachmentHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -1484,7 +1484,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/sent/attachments/get-attachment.ts
@@ -1515,7 +1515,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/sent/attachments/post-attachment.postAttachmentHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -1553,7 +1553,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/sent/attachments/post-attachment.ts
@@ -1586,7 +1586,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/sent/contents/get-contents.getContentsHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs24.x
       Architectures:
         - x86_64
       MemorySize: 1024
@@ -1626,7 +1626,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: es2023
+        Target: node24
         Sourcemap: true
         EntryPoints:
           - src/handlers/sent/contents/get-contents.ts
