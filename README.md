@@ -25,7 +25,7 @@ If file `~/.aws/credentials` does not exist, create it and add a default profile
 [default]
 aws_access_key_id=<YOUR_ACCESS_KEY_ID>
 aws_secret_access_key=<YOUR_SECRET_ACCESS_KEY>
-region=us-east-2
+region=us-east-1
 ```
 
 If necessary, generate a [new access key ID and secret access key](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys).
@@ -37,7 +37,7 @@ Add a `developer` profile to the same credentials file:
 role_arn=arn:aws:iam::<account number>:role/developer
 source_profile=default
 mfa_serial=<YOUR_MFA_ARN>
-region=us-east-2
+region=us-east-1
 ```
 
 If necessary, retrieve the ARN of the primary MFA device attached to the default profile:
@@ -68,9 +68,9 @@ npm run lint
 
 ### Deploying to Production
 
-When a pull request is merged into `master`, the lambda code is transpiled to commonjs, zipped, and then copied to S3. Afterwards, the infrastructure portion of the project is deployed, which picks up the new versions in S3 and updates each lambda.
+When a pull request is merged into `master`, GitHub Actions (`.github/workflows/pipeline.yaml`) builds the Lambda functions with `sam build` (esbuild), packages them with `sam package`, and deploys with `sam deploy`.
 
-In extreme cases, lambdas can be transpiled, zipped, and uploaded locally with:
+In extreme cases, lambdas can be built and deployed locally with:
 
 ```bash
 npm run deploy
@@ -78,7 +78,7 @@ npm run deploy
 
 ## Infrastructure
 
-See `infrastructure` folder for information on updating infrastructure.
+Infrastructure specific to this API lives in this repo's `template.yaml`. Infrastructure shared across the `emails` project (Cognito, IAM, DNS) lives in the separate `emails-infrastructure` repo.
 
 ## Additional Documentation
 
