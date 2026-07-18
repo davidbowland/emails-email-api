@@ -16,6 +16,7 @@ Parameters:
   QueueApiKey:
     Type: String
     Description: API key for emails-queue-api
+    NoEcho: true
 
 Mappings:
   EnvironmentMap:
