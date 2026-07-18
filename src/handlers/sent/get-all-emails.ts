@@ -1,11 +1,11 @@
 import { getSent } from '../../services/dynamodb'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../types'
 import { validateUsernameInEvent } from '../../utils/events'
-import { log, logError } from '../../utils/logging'
+import { log, logError, redactEvent } from '../../utils/logging'
 import status from '../../utils/status'
 
 export const getAllEmailsHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
-  log('Received event', event)
+  log('Received event', redactEvent(event))
   try {
     const accountId = event.pathParameters?.accountId as string
     if (!validateUsernameInEvent(event, accountId)) {

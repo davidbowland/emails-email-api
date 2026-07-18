@@ -3,7 +3,7 @@ import { getReceivedById, setReceivedById } from '../../services/dynamodb'
 import { bounceEmail } from '../../services/queue'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2, Email } from '../../types'
 import { validateUsernameInEvent } from '../../utils/events'
-import { log, logError } from '../../utils/logging'
+import { log, logError, redactEvent } from '../../utils/logging'
 import status from '../../utils/status'
 
 const determineBounceSender = (accountAddress: string, email: Email): string => {
@@ -44,7 +44,7 @@ const performBounce = async (
 }
 
 export const bounceEmailHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
-  log('Received event', { ...event, body: undefined })
+  log('Received event', redactEvent(event))
   try {
     const accountId = event.pathParameters?.accountId as string
     const emailId = event.pathParameters?.emailId as string

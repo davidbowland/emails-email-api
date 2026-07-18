@@ -2,7 +2,7 @@ import { deleteSentById, getSentById } from '../../services/dynamodb'
 import { deleteS3Object } from '../../services/s3'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../types'
 import { validateUsernameInEvent } from '../../utils/events'
-import { log, logError } from '../../utils/logging'
+import { log, logError, redactEvent } from '../../utils/logging'
 import status from '../../utils/status'
 
 const deleteEmail = async (accountId: string, emailId: string) => {
@@ -33,7 +33,7 @@ const deleteEmail = async (accountId: string, emailId: string) => {
 }
 
 export const deleteEmailHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
-  log('Received event', { ...event, body: undefined })
+  log('Received event', redactEvent(event))
   try {
     const accountId = event.pathParameters?.accountId as string
     const emailId = event.pathParameters?.emailId as string

@@ -2,11 +2,11 @@ import { getSentById } from '../../../services/dynamodb'
 import { getSignedS3Url } from '../../../services/s3'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from '../../../types'
 import { validateUsernameInEvent } from '../../../utils/events'
-import { log } from '../../../utils/logging'
+import { log, redactEvent } from '../../../utils/logging'
 import status from '../../../utils/status'
 
 export const getAttachmentHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
-  log('Received event', { ...event, body: undefined })
+  log('Received event', redactEvent(event))
   try {
     const accountId = event.pathParameters?.accountId as string
     const attachmentId = event.pathParameters?.attachmentId as string

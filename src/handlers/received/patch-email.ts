@@ -4,7 +4,7 @@ import { mutateObjectOnJsonPatch, throwOnInvalidJsonPatch } from '../../config'
 import { getReceivedById, setReceivedById } from '../../services/dynamodb'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2, Email, PatchOperation } from '../../types'
 import { extractJsonPatchFromEvent, validateUsernameInEvent } from '../../utils/events'
-import { log, logError } from '../../utils/logging'
+import { log, logError, redactEvent } from '../../utils/logging'
 import status from '../../utils/status'
 
 const applyJsonPatch = async (
@@ -41,7 +41,7 @@ const patchById = async (
 }
 
 export const patchEmailHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
-  log('Received event', { ...event, body: undefined })
+  log('Received event', redactEvent(event))
   try {
     const accountId = event.pathParameters?.accountId as string
     const emailId = event.pathParameters?.emailId as string
