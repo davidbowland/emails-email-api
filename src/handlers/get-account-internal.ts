@@ -12,7 +12,7 @@ export const getAccountInternalHandler = async (
   try {
     const data = await getAccountById(accountId)
     return { ...status.OK, body: JSON.stringify({ ...data, id: accountId }) }
-  } catch (error) {
+  } catch {
     try {
       const data = await getAccountById('admin')
       return { ...status.OK, body: JSON.stringify({ ...data, id: accountId }) }

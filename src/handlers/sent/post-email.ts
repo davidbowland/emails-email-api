@@ -49,7 +49,7 @@ export const postEmailHandler = async (event: APIGatewayProxyEventV2): Promise<A
     } catch (error: unknown) {
       return { ...status.BAD_REQUEST, body: JSON.stringify({ message: (error as any).message }) }
     }
-  } catch (error) {
+  } catch {
     return status.NOT_FOUND
   }
 }

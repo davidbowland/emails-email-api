@@ -28,7 +28,7 @@ const deleteEmail = async (accountId: string, emailId: string) => {
       logError(error)
       return status.INTERNAL_SERVER_ERROR
     }
-  } catch (error) {
+  } catch {
     return status.NOT_FOUND
   }
 }

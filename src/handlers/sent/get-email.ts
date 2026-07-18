@@ -16,7 +16,7 @@ export const getEmailHandler = async (event: APIGatewayProxyEventV2): Promise<AP
     try {
       const data = await getSentById(accountId, emailId)
       return { ...status.OK, body: JSON.stringify({ ...data, accountId, id: emailId }) }
-    } catch (error) {
+    } catch {
       return status.NOT_FOUND
     }
   } catch (error) {

@@ -20,7 +20,7 @@ export const deleteAccountHandler = async (event: APIGatewayProxyEventV2): Promi
       logError(error)
       return status.INTERNAL_SERVER_ERROR
     }
-  } catch (error) {
+  } catch {
     return status.NO_CONTENT
   }
 }

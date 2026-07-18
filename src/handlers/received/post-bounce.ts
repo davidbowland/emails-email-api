@@ -55,7 +55,7 @@ export const bounceEmailHandler = async (event: APIGatewayProxyEventV2): Promise
     try {
       const email = await getReceivedById(accountId, emailId)
       return await performBounce(accountId, emailId, email)
-    } catch (error) {
+    } catch {
       return status.NOT_FOUND
     }
   } catch (error) {

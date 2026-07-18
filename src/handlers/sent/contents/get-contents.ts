@@ -21,7 +21,7 @@ export const getContentsHandler = async (event: APIGatewayProxyEventV2): Promise
         ...status.OK,
         body: body.toString('utf-8'),
       }
-    } catch (error) {
+    } catch {
       return status.NOT_FOUND
     }
   } catch (error) {
