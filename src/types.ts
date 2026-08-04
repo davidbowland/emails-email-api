@@ -136,12 +136,7 @@ export interface BounceOutbound {
 }
 
 export type BounceType =
-  | 'ContentRejected'
-  | 'DoesNotExist'
-  | 'ExceededQuota'
-  | 'MessageTooLarge'
-  | 'TemporaryFailure'
-  | 'Undefined'
+  'ContentRejected' | 'DoesNotExist' | 'ExceededQuota' | 'MessageTooLarge' | 'TemporaryFailure' | 'Undefined'
 
 // Queue API
 
