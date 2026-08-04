@@ -53,6 +53,22 @@ Mappings:
       userPoolClient: 1mu219nb4hc1jp5bgnq1bcpnsb
       zoneId: Z01312547RGU1BYKIJXY
 
+Globals:
+  Function:
+    Environment:
+      Variables:
+        # Only a handful of functions here are traced, but the X-Ray SDK loads in ALL of them:
+        # src/utils/logging.ts exports xrayCapture, and src/services/dynamodb.ts (imported by 21 of
+        # the 22 handlers) calls it at module scope. Unlike bridge-api, the traced and untraced
+        # handlers share those service modules, so the SDK cannot be isolated without duplicating
+        # the clients.
+        #
+        # In an untraced function the SDK finds no segment. Its default strategy is LOG_ERROR, which
+        # emits a literal console.error — and every log group in this file is subscribed on
+        # `[timestamp, uuid, level="ERROR", message]`, which pages a human. That would page per
+        # invocation, on the busiest UI endpoints. IGNORE_ERROR makes the SDK stay silent instead.
+        AWS_XRAY_CONTEXT_MISSING: IGNORE_ERROR
+
 Resources:
   # API Gateway
 
@@ -169,7 +185,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 10
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -231,7 +246,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 10
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -299,6 +313,10 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 10
+      # Deliberate: emails-inbound-service calls this endpoint, and this is one of only three
+      # functions here still traced. X-Ray was removed fleet-wide except the email path — see
+      # playhouse docs/superpowers/specs/2026-08-03-xray-removal-design.md. Do not add Tracing
+      # to the other functions in this file.
       Tracing: Active
     Metadata:
       BuildMethod: esbuild
@@ -361,7 +379,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 10
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -429,7 +446,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 10
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -497,7 +513,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 10
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -570,7 +585,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 20
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -638,7 +652,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 20
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -706,7 +719,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 10
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -774,7 +786,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 10
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -836,6 +847,10 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 30
+      # Deliberate: emails-inbound-service calls this endpoint, and this is one of only three
+      # functions here still traced. X-Ray was removed fleet-wide except the email path — see
+      # playhouse docs/superpowers/specs/2026-08-03-xray-removal-design.md. Do not add Tracing
+      # to the other functions in this file.
       Tracing: Active
     Metadata:
       BuildMethod: esbuild
@@ -907,6 +922,10 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 10
+      # Deliberate: emails-inbound-service calls this endpoint, and this is one of only three
+      # functions here still traced. X-Ray was removed fleet-wide except the email path — see
+      # playhouse docs/superpowers/specs/2026-08-03-xray-removal-design.md. Do not add Tracing
+      # to the other functions in this file.
       Tracing: Active
     Metadata:
       BuildMethod: esbuild
@@ -980,7 +999,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 10
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -1053,7 +1071,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 10
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -1126,7 +1143,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 20
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -1194,7 +1210,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 20
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -1262,7 +1277,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 10
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -1330,7 +1344,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 10
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -1407,6 +1420,12 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 30
+      # Deliberate: this is the OUTBOUND origin — it calls services/queue.ts, which POSTs to
+      # emails-queue-api, and from there SQS carries the trace on to emails-queue-service and SES.
+      # PostBounceReceivedEmailFunction calls the same service and is traced, so leaving this one
+      # out would stitch the bounce path and not the send path. X-Ray was removed fleet-wide except
+      # the email path — see playhouse docs/superpowers/specs/2026-08-03-xray-removal-design.md.
+      # Do not add Tracing to the other functions in this file.
       Tracing: Active
     Metadata:
       BuildMethod: esbuild
@@ -1480,7 +1499,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 10
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -1549,7 +1567,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 10
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -1622,7 +1639,6 @@ Resources:
         'created-for': 'emails'
         'environment': !Ref Environment
       Timeout: 10
-      Tracing: Active
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
