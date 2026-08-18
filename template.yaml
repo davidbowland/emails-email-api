@@ -13,10 +13,6 @@ Parameters:
       - prod
       - test
     Description: Environment for deploy
-  QueueApiKey:
-    Type: String
-    Description: API key for emails-queue-api
-    NoEcho: true
 
 Mappings:
   EnvironmentMap:
@@ -29,12 +25,16 @@ Mappings:
       domainEmail: dbowland.com
       domainInternal: emails-email-api-internal.dbowland.com
       logStreamFunction: log-subscriber
+      queueApiKeyPath: /emails/queue-api-key
       queueApiUrl: https://emails-queue-api.dbowland.com/v1
       tableAccounts: emails-email-api-accounts
+      tablePushSubscriptions: emails-email-api-push-subscriptions
       tableReceived: emails-email-api-received
       tableSent: emails-email-api-sent
       userPool: us-east-1_Ye69GgTRe
       userPoolClient: 3cejj3ovkhdcc1g12pan5kef97
+      vapidPrivateKeyPath: /emails-email-api/vapid-private-key
+      vapidPublicKeyPath: /emails-email-api/vapid-public-key
       zoneId: Z072422417XWM8PIXXSFA
     test:
       bucket: emails-service-storage-test
@@ -45,12 +45,16 @@ Mappings:
       domainEmail: bowland.link
       domainInternal: emails-email-api-internal.bowland.link
       logStreamFunction: log-subscriber-test
+      queueApiKeyPath: /emails-test/queue-api-key
       queueApiUrl: https://emails-queue-api.bowland.link/v1
       tableAccounts: emails-email-api-accounts-test
+      tablePushSubscriptions: emails-email-api-push-subscriptions-test
       tableReceived: emails-email-api-received-test
       tableSent: emails-email-api-sent-test
       userPool: us-east-1_F7D2gaAHZ
       userPoolClient: 1mu219nb4hc1jp5bgnq1bcpnsb
+      vapidPrivateKeyPath: /emails-email-api-test/vapid-private-key
+      vapidPublicKeyPath: /emails-email-api-test/vapid-public-key
       zoneId: Z01312547RGU1BYKIJXY
 
 Globals:
@@ -896,12 +900,20 @@ Resources:
         - AWSLambdaBasicExecutionRole
         - DynamoDBCrudPolicy:
             TableName: !Ref ReceivedTable
+        - Version: 2012-10-17
+          Statement:
+            - Action: ['ssm:GetParameter']
+              Effect: Allow
+              Resource:
+                - !Sub
+                  - 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${Path}'
+                  - Path: !FindInMap [EnvironmentMap, !Ref Environment, queueApiKeyPath]
       Environment:
         Variables:
           DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable
           EMAIL_DOMAIN: !FindInMap [EnvironmentMap, !Ref Environment, domainEmail]
-          QUEUE_API_KEY: !Ref QueueApiKey
           QUEUE_API_URL: !FindInMap [EnvironmentMap, !Ref Environment, queueApiUrl]
+          SSM_QUEUE_API_KEY_PATH: !FindInMap [EnvironmentMap, !Ref Environment, queueApiKeyPath]
       Events:
         ApiKey:
           Type: Api
@@ -957,6 +969,94 @@ Resources:
         - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
       FilterPattern: '[timestamp, uuid, level="ERROR", message]'
       LogGroupName: !Ref PostBounceReceivedEmailLogGroup
+
+  PostNotifyReceivedEmailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/received/post-notify.notifyEmailHandler
+      Runtime: nodejs24.x
+      Architectures:
+        - x86_64
+      MemorySize: 1024
+      Description: emails-email-api notify received email
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AccountTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PushSubscriptionTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReceivedTable
+        - Version: 2012-10-17
+          Statement:
+            - Action: ['ssm:GetParameter']
+              Effect: Allow
+              Resource:
+                - !Sub
+                  - 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${Path}'
+                  - Path: !FindInMap [EnvironmentMap, !Ref Environment, vapidPrivateKeyPath]
+                - !Sub
+                  - 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${Path}'
+                  - Path: !FindInMap [EnvironmentMap, !Ref Environment, vapidPublicKeyPath]
+      Environment:
+        Variables:
+          DYNAMODB_ACCOUNTS_TABLE_NAME: !Ref AccountTable
+          DYNAMODB_PUSH_SUBSCRIPTIONS_TABLE_NAME: !Ref PushSubscriptionTable
+          DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable
+          # web-push emits Node's DEP0169 (url.parse) deprecation warning on stderr, which
+          # CloudWatch records on every send.
+          NODE_OPTIONS: --no-deprecation
+          SSM_VAPID_PRIVATE_KEY_PATH: !FindInMap [EnvironmentMap, !Ref Environment, vapidPrivateKeyPath]
+          SSM_VAPID_PUBLIC_KEY_PATH: !FindInMap [EnvironmentMap, !Ref Environment, vapidPublicKeyPath]
+          VAPID_SUBJECT:
+            !Sub ['mailto:do-not-reply@${Domain}', Domain: !FindInMap [EnvironmentMap, !Ref Environment, domainEmail]]
+      Events:
+        # Internal-only, like PutReceivedEmailFunction: registered as an ApiKey event and never as
+        # an Http event. The neighbouring .../bounce route is on both doors because the UI calls it;
+        # that is not the precedent here.
+        ApiKey:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts/{accountId}/emails/received/{emailId}/notify
+            Method: post
+            Auth:
+              ApiKeyRequired: true
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 30
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: node24
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/received/post-notify.ts
+
+  PostNotifyReceivedEmailLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PostNotifyReceivedEmailFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  PostNotifyReceivedEmailLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref PostNotifyReceivedEmailLogGroup
 
   ## Received attachments
 
@@ -1392,14 +1492,22 @@ Resources:
             TableName: !Ref SentTable
         - S3CrudPolicy:
             BucketName: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+        - Version: 2012-10-17
+          Statement:
+            - Action: ['ssm:GetParameter']
+              Effect: Allow
+              Resource:
+                - !Sub
+                  - 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${Path}'
+                  - Path: !FindInMap [EnvironmentMap, !Ref Environment, queueApiKeyPath]
       Environment:
         Variables:
           DYNAMODB_ACCOUNTS_TABLE_NAME: !Ref AccountTable
           DYNAMODB_SENT_TABLE_NAME: !Ref SentTable
           EMAIL_BUCKET: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
           EMAIL_DOMAIN: !FindInMap [EnvironmentMap, !Ref Environment, domainEmail]
-          QUEUE_API_KEY: !Ref QueueApiKey
           QUEUE_API_URL: !FindInMap [EnvironmentMap, !Ref Environment, queueApiUrl]
+          SSM_QUEUE_API_KEY_PATH: !FindInMap [EnvironmentMap, !Ref Environment, queueApiKeyPath]
       Events:
         ApiKey:
           Type: Api
@@ -1670,6 +1778,193 @@ Resources:
       FilterPattern: '[timestamp, uuid, level="ERROR", message]'
       LogGroupName: !Ref GetSentContentsLogGroup
 
+  ## Push
+
+  GetVapidPublicKeyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/get-vapid-public-key.getVapidPublicKeyHandler
+      Runtime: nodejs24.x
+      Architectures:
+        - x86_64
+      MemorySize: 1024
+      Description: emails-email-api get VAPID public key
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        # The public key ARN only. SSM_VAPID_PRIVATE_KEY_PATH is deliberately absent from this
+        # function's Environment.Variables as well.
+        - Version: 2012-10-17
+          Statement:
+            - Action: ['ssm:GetParameter']
+              Effect: Allow
+              Resource:
+                - !Sub
+                  - 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${Path}'
+                  - Path: !FindInMap [EnvironmentMap, !Ref Environment, vapidPublicKeyPath]
+      Environment:
+        Variables:
+          SSM_VAPID_PUBLIC_KEY_PATH: !FindInMap [EnvironmentMap, !Ref Environment, vapidPublicKeyPath]
+      Events:
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /vapid-public-key
+            Method: get
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: node24
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/get-vapid-public-key.ts
+
+  GetVapidPublicKeyLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GetVapidPublicKeyFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  GetVapidPublicKeyLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref GetVapidPublicKeyLogGroup
+
+  PostPushSubscriptionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/push/post-subscription.postSubscriptionHandler
+      Runtime: nodejs24.x
+      Architectures:
+        - x86_64
+      MemorySize: 1024
+      Description: emails-email-api post push subscription
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PushSubscriptionTable
+      Environment:
+        Variables:
+          DYNAMODB_PUSH_SUBSCRIPTIONS_TABLE_NAME: !Ref PushSubscriptionTable
+      Events:
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}/push-subscriptions
+            Method: post
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: node24
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/push/post-subscription.ts
+
+  PostPushSubscriptionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PostPushSubscriptionFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  PostPushSubscriptionLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref PostPushSubscriptionLogGroup
+
+  DeletePushSubscriptionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/push/delete-subscription.deleteSubscriptionHandler
+      Runtime: nodejs24.x
+      Architectures:
+        - x86_64
+      MemorySize: 1024
+      Description: emails-email-api delete push subscription
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PushSubscriptionTable
+      Environment:
+        Variables:
+          DYNAMODB_PUSH_SUBSCRIPTIONS_TABLE_NAME: !Ref PushSubscriptionTable
+      Events:
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}/push-subscriptions
+            Method: delete
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      Timeout: 10
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: node24
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/push/delete-subscription.ts
+
+  DeletePushSubscriptionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${DeletePushSubscriptionFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  DeletePushSubscriptionLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref DeletePushSubscriptionLogGroup
+
   # Database
 
   AccountTable:
@@ -1683,6 +1978,27 @@ Resources:
         - AttributeName: Account
           KeyType: HASH
       TableName: !FindInMap [EnvironmentMap, !Ref Environment, tableAccounts]
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  # Unlike ReceivedTable/SentTable this is HASH-only -- one item per account, Data holding a JSON
+  # array of subscriptions.
+  PushSubscriptionTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: Account
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: Account
+          KeyType: HASH
+      TableName: !FindInMap [EnvironmentMap, !Ref Environment, tablePushSubscriptions]
       Tags:
         - Key: 'created-by'
           Value: 'emails-email-api'
