@@ -137,6 +137,16 @@ export interface EmailOutbound {
   to: EmailAddress[]
 }
 
+// Push
+
+// The push carries facts, not sentences: the service worker assembles the English. These three
+// fields are the only ones ever sent to a browser.
+export interface PushPayload {
+  emailId: string
+  senderLabel?: string
+  subject?: string
+}
+
 // Bounces
 
 export interface BounceOutbound {
