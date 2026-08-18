@@ -9,6 +9,7 @@ import {
   ParsedMail,
   PatchOperation,
   PostSignedUrl,
+  PushSubscription,
 } from '@types'
 
 export const accountId = 'account'
@@ -262,3 +263,21 @@ export const postAttachmentResult: PostSignedUrl = {
   },
   url: 'https://s3.amazonaws.com/emails-service-storage-test',
 }
+
+export const pushSubscription: PushSubscription = {
+  endpoint: 'https://push.example.com/subscription/first',
+  keys: {
+    auth: 'auth-secret-first',
+    p256dh: 'p256dh-key-first',
+  },
+}
+
+export const otherPushSubscription: PushSubscription = {
+  endpoint: 'https://push.example.com/subscription/second',
+  keys: {
+    auth: 'auth-secret-second',
+    p256dh: 'p256dh-key-second',
+  },
+}
+
+export const pushSubscriptions: PushSubscription[] = [pushSubscription, otherPushSubscription]

@@ -1,15 +1,18 @@
-import { account, accountId, email, emailId } from '../__mocks__'
+import { account, accountId, email, emailId, pushSubscription, pushSubscriptions } from '../__mocks__'
 import {
   deleteAccountById,
+  deletePushSubscriptionsById,
   deleteReceivedById,
   deleteSentById,
   getAccountById,
   getAccounts,
+  getPushSubscriptionsById,
   getReceived,
   getReceivedById,
   getSent,
   getSentById,
   setAccountById,
+  setPushSubscriptionsById,
   setReceivedById,
   setSentById,
 } from '@services/dynamodb'
@@ -137,6 +140,87 @@ describe('dynamodb', () => {
             },
           },
           TableName: 'accounts-table',
+        })
+      })
+    })
+  })
+
+  describe('push subscriptions', () => {
+    describe('getPushSubscriptionsById', () => {
+      beforeAll(() => {
+        mockSend.mockResolvedValue({ Item: { Data: { S: JSON.stringify(pushSubscriptions) } } })
+      })
+
+      test('expect accountId passed to get', async () => {
+        await getPushSubscriptionsById(accountId)
+
+        expect(mockSend).toHaveBeenCalledWith({
+          Key: {
+            Account: {
+              S: `${accountId}`,
+            },
+          },
+          TableName: 'push-subscriptions-table',
+        })
+      })
+
+      test('expect subscriptions parsed and returned', async () => {
+        const result = await getPushSubscriptionsById(accountId)
+
+        expect(result).toEqual(pushSubscriptions)
+      })
+
+      test('expect empty array when no item stored', async () => {
+        mockSend.mockResolvedValueOnce({ Item: undefined })
+
+        const result = await getPushSubscriptionsById(accountId)
+
+        expect(result).toEqual([])
+      })
+    })
+
+    describe('setPushSubscriptionsById', () => {
+      test('expect subscriptions passed to put', async () => {
+        await setPushSubscriptionsById(accountId, [pushSubscription])
+
+        expect(mockSend).toHaveBeenCalledWith({
+          Item: {
+            Account: {
+              S: `${accountId}`,
+            },
+            Data: {
+              S: JSON.stringify([pushSubscription]),
+            },
+          },
+          TableName: 'push-subscriptions-table',
+        })
+      })
+
+      test('expect item deleted when the array empties', async () => {
+        await setPushSubscriptionsById(accountId, [])
+
+        expect(mockSend).toHaveBeenCalledWith({
+          Key: {
+            Account: {
+              S: `${accountId}`,
+            },
+          },
+          TableName: 'push-subscriptions-table',
+        })
+      })
+    })
+
+    describe('deletePushSubscriptionsById', () => {
+      test('expect accountId passed to delete', async () => {
+        await deletePushSubscriptionsById(accountId)
+
+        expect(mockSend).toHaveBeenCalledWith({
+          Key: {
+            Account: {
+              S: `${accountId}`,
+            },
+          },
+          TableName: 'push-subscriptions-table',
         })
       })
     })

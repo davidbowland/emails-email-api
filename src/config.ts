@@ -12,6 +12,7 @@ export const queueApiUrl = process.env.QUEUE_API_URL as string
 // DynamoDB
 
 export const dynamodbAccountsTableName = process.env.DYNAMODB_ACCOUNTS_TABLE_NAME as string
+export const dynamodbPushSubscriptionsTableName = process.env.DYNAMODB_PUSH_SUBSCRIPTIONS_TABLE_NAME as string
 export const dynamodbReceivedTableName = process.env.DYNAMODB_RECEIVED_TABLE_NAME as string
 export const dynamodbSentTableName = process.env.DYNAMODB_SENT_TABLE_NAME as string
 

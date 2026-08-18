@@ -10,8 +10,13 @@ import {
   ScanOutput,
 } from '@aws-sdk/client-dynamodb'
 
-import { dynamodbAccountsTableName, dynamodbReceivedTableName, dynamodbSentTableName } from '../config'
-import { Account, AccountBatch, DEFAULT_NOTIFICATION_PREVIEW, Email, EmailBatch } from '../types'
+import {
+  dynamodbAccountsTableName,
+  dynamodbPushSubscriptionsTableName,
+  dynamodbReceivedTableName,
+  dynamodbSentTableName,
+} from '../config'
+import { Account, AccountBatch, DEFAULT_NOTIFICATION_PREVIEW, Email, EmailBatch, PushSubscription } from '../types'
 import { xrayCapture } from '../utils/logging'
 
 const dynamodb = xrayCapture(new DynamoDBClient({ apiVersion: '2012-08-10' }))
@@ -83,6 +88,56 @@ export const setAccountById = async (account: string, data: Account): Promise<Pu
       },
     },
     TableName: dynamodbAccountsTableName,
+  })
+  return dynamodb.send(command)
+}
+
+/* Push subscriptions */
+
+export const deletePushSubscriptionsById = async (account: string): Promise<DeleteItemOutput> => {
+  const command = new DeleteItemCommand({
+    Key: {
+      Account: {
+        S: `${account}`,
+      },
+    },
+    TableName: dynamodbPushSubscriptionsTableName,
+  })
+  return dynamodb.send(command)
+}
+
+export const getPushSubscriptionsById = async (account: string): Promise<PushSubscription[]> => {
+  const command = new GetItemCommand({
+    Key: {
+      Account: {
+        S: `${account}`,
+      },
+    },
+    TableName: dynamodbPushSubscriptionsTableName,
+  })
+  const response = await dynamodb.send(command)
+  return response.Item?.Data?.S ? JSON.parse(response.Item.Data.S) : []
+}
+
+// When the array empties -- after the last DELETE or the last prune -- the item is deleted rather
+// than stored as [], so the privacy policy's "until you turn notifications off" is literally true.
+export const setPushSubscriptionsById = async (
+  account: string,
+  subscriptions: PushSubscription[],
+): Promise<DeleteItemOutput | PutItemOutput> => {
+  if (subscriptions.length === 0) {
+    return deletePushSubscriptionsById(account)
+  }
+  const command = new PutItemCommand({
+    Item: {
+      Account: {
+        S: `${account}`,
+      },
+      Data: {
+        S: JSON.stringify(subscriptions),
+      },
+    },
+    TableName: dynamodbPushSubscriptionsTableName,
   })
   return dynamodb.send(command)
 }

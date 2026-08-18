@@ -5,6 +5,7 @@ process.env.QUEUE_API_URL = 'https://queue.api'
 // DynamoDB
 
 process.env.DYNAMODB_ACCOUNTS_TABLE_NAME = 'accounts-table'
+process.env.DYNAMODB_PUSH_SUBSCRIPTIONS_TABLE_NAME = 'push-subscriptions-table'
 process.env.DYNAMODB_RECEIVED_TABLE_NAME = 'received-table'
 process.env.DYNAMODB_SENT_TABLE_NAME = 'sent-table'
 

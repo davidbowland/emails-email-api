@@ -5,6 +5,7 @@ export type * from 'aws-lambda'
 export type { AxiosResponse } from 'axios'
 export type { ParsedMail } from 'mailparser'
 export type { Operation as PatchOperation } from 'fast-json-patch'
+export type { PushSubscription } from 'web-push'
 
 export interface StringObject {
   [key: string]: string
