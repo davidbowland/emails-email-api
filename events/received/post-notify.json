@@ -1,0 +1,12 @@
+{
+  "pathParameters": {
+    "accountId": "account",
+    "emailId": "7yh8g-7ytguy-98ui8u-5efka-87y87y"
+  },
+  "requestContext": {
+    "http": {
+      "method": "POST",
+      "path": "/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y/notify"
+    }
+  }
+}
