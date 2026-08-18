@@ -75,8 +75,6 @@ jobs:
 
       - name: Deploy to feature stack in the testing account
         shell: bash
-        env:
-          TESTING_QUEUE_API_KEY: ${{ secrets.TESTING_QUEUE_API_KEY }}
         run: |
           sam deploy --stack-name ${TESTING_STACK_NAME} \
             --capabilities CAPABILITY_IAM \
@@ -85,7 +83,7 @@ jobs:
             --s3-prefix ${TESTING_STACK_NAME} \
             --no-fail-on-empty-changeset \
             --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE} \
-            --parameter-overrides "Environment=test QueueApiKey=${TESTING_QUEUE_API_KEY}"
+            --parameter-overrides "Environment=test"
 
   build-and-package:
     name: Build and package lambda
@@ -183,8 +181,6 @@ jobs:
           role-skip-session-tagging: true
 
       - name: Deploy to testing account
-        env:
-          TESTING_QUEUE_API_KEY: ${{ secrets.TESTING_QUEUE_API_KEY }}
         run: |
           sam deploy --stack-name ${TESTING_STACK_NAME} \
             --template packaged-testing.yaml \
@@ -194,7 +190,7 @@ jobs:
             --s3-prefix ${TESTING_STACK_NAME} \
             --no-fail-on-empty-changeset \
             --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE} \
-            --parameter-overrides "Environment=test QueueApiKey=${TESTING_QUEUE_API_KEY}"
+            --parameter-overrides "Environment=test"
 
   deploy-prod:
     name: Deploy to production
@@ -224,8 +220,6 @@ jobs:
           role-skip-session-tagging: true
 
       - name: Deploy to production account
-        env:
-          PROD_QUEUE_API_KEY: ${{ secrets.PROD_QUEUE_API_KEY }}
         run: |
           sam deploy --stack-name ${PROD_STACK_NAME} \
             --template packaged-prod.yaml \
@@ -234,8 +228,7 @@ jobs:
             --s3-bucket ${PROD_ARTIFACTS_BUCKET} \
             --s3-prefix ${PROD_STACK_NAME} \
             --no-fail-on-empty-changeset \
-            --role-arn ${PROD_CLOUDFORMATION_EXECUTION_ROLE} \
-            --parameter-overrides "QueueApiKey=${PROD_QUEUE_API_KEY}"
+            --role-arn ${PROD_CLOUDFORMATION_EXECUTION_ROLE}
 
   bump:
     name: Bump the version number and tag the commit
