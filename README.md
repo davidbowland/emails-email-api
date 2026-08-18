@@ -80,6 +80,54 @@ npm run deploy
 
 Infrastructure specific to this API lives in this repo's `template.yaml`. Infrastructure shared across the `emails` project (Cognito, IAM, DNS) lives in the separate `emails-infrastructure` repo.
 
+## Secrets
+
+Application secrets live in SSM Parameter Store and are read at runtime by the Lambdas that need them. GitHub keeps only what is needed to authenticate a deploy.
+
+| Path                                  | `-test` sibling                            | Type         | Read by                                      |
+| ------------------------------------- | ------------------------------------------ | ------------ | -------------------------------------------- |
+| `/emails/queue-api-key`               | `/emails-test/queue-api-key`               | SecureString | `emails-email-api`, `emails-inbound-service` |
+| `/emails-email-api/vapid-public-key`  | `/emails-email-api-test/vapid-public-key`  | SecureString | `emails-email-api`                           |
+| `/emails-email-api/vapid-private-key` | `/emails-email-api-test/vapid-private-key` | SecureString | `emails-email-api`                           |
+
+The queue API key sits at a shared `/emails/` path on purpose: it is one credential used by two services, and a per-repo path would mean two places to edit on every rotation.
+
+### Provisioning
+
+**Parameters must exist before the first deploy of the stack that reads them.** A stack whose parameters are missing deploys successfully and then fails on the first invocation.
+
+Generate a VAPID keypair:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+Then write everything for one environment:
+
+```bash
+./scripts/putSsmParameters.sh test
+./scripts/putSsmParameters.sh prod
+```
+
+Or write a single parameter by hand:
+
+```bash
+aws ssm put-parameter --type SecureString --overwrite \
+  --name /emails-email-api-test/vapid-public-key --value 'BN...'
+```
+
+A `SecureString` cannot be resolved by CloudFormation at deploy time (`{{resolve:ssm:…}}` handles `String` only), so the runtime-read machinery in `src/services/ssm.ts` is mandatory rather than chosen.
+
+### Rotation
+
+Each parameter is memoized per warm Lambda container and the cache never expires, so a rotated value does not reach a warm function. Rotate in this order:
+
+1. Write the new value to SSM.
+2. Force cold starts — redeploy the consuming stacks, or touch an environment variable.
+3. Retire the old credential.
+
+Rotating the **VAPID keypair invalidates every existing push subscription**. The UI's self-heal recovers browsers that still have notification permission granted; nobody else. Do not rotate it casually.
+
 ## Additional Documentation
 
 - [AWS Lambda](https://aws.amazon.com/lambda/)

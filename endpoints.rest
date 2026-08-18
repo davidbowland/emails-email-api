@@ -143,3 +143,29 @@ Content-Type: multipart/form-data
   "contentType": "application/pdf",
   "content": "base64-encoded-content"
 }
+
+## Push
+
+### Get VAPID public key
+GET https://{{emailsEmailDomain}}/v1/vapid-public-key HTTP/1.1
+Authorization: Bearer {{authToken}}
+
+### Register a push subscription
+POST https://{{emailsEmailDomain}}/v1/accounts/account/push-subscriptions HTTP/1.1
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "subscription": {
+    "endpoint": "https://push.example.com/subscription/first",
+    "keys": { "auth": "auth-secret", "p256dh": "p256dh-key" }
+  }
+}
+
+### Remove a push subscription
+DELETE https://{{emailsEmailDomain}}/v1/accounts/account/push-subscriptions?endpoint=https%3A%2F%2Fpush.example.com%2Fsubscription%2Ffirst HTTP/1.1
+Authorization: Bearer {{authToken}}
+
+### Notify a received email (internal)
+POST https://{{emailsEmailDomain}}/v1/accounts/account/emails/received/7yh8g-7ytguy-98ui8u-5efka-87y87y/notify HTTP/1.1
+x-api-key: {{apiKey}}
