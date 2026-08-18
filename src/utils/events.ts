@@ -13,6 +13,7 @@ import {
   EmailOutbound,
   NOTIFICATION_PREVIEWS,
   PatchOperation,
+  PushSubscription,
   StringObject,
 } from '../types'
 
@@ -40,6 +41,40 @@ export const formatAccount = (account: Account): Account => {
     notificationPreview: NOTIFICATION_PREVIEWS.includes(account.notificationPreview)
       ? account.notificationPreview
       : DEFAULT_NOTIFICATION_PREVIEW,
+  }
+}
+
+/* Push subscriptions */
+
+const PUSH_ENDPOINT_MAX_LENGTH = 2048
+
+// A subscription missing either key cannot be encrypted to, and would throw inside every future
+// sendNotification -- a per-send exception, never the 410 that pruning acts on, so it would linger
+// forever. Reject it at the boundary instead. No message here may quote the endpoint: it is
+// per-device data and handlers echo these messages back.
+export const formatPushSubscription = (subscription: PushSubscription): PushSubscription => {
+  if (typeof subscription?.endpoint !== 'string' || subscription.endpoint.length === 0) {
+    throw new Error('subscription.endpoint must be a non-empty string')
+  }
+  if (subscription.endpoint.length > PUSH_ENDPOINT_MAX_LENGTH) {
+    throw new Error(`subscription.endpoint must be ${PUSH_ENDPOINT_MAX_LENGTH} characters or fewer`)
+  }
+  if (!subscription.endpoint.startsWith('https://')) {
+    throw new Error('subscription.endpoint must be an https URL')
+  }
+  if (typeof subscription.keys?.p256dh !== 'string' || subscription.keys.p256dh.length === 0) {
+    throw new Error('subscription.keys.p256dh must be a non-empty string')
+  }
+  if (typeof subscription.keys?.auth !== 'string' || subscription.keys.auth.length === 0) {
+    throw new Error('subscription.keys.auth must be a non-empty string')
+  }
+
+  return {
+    endpoint: subscription.endpoint,
+    keys: {
+      auth: subscription.keys.auth,
+      p256dh: subscription.keys.p256dh,
+    },
   }
 }
 
@@ -243,6 +278,9 @@ export const extractEmailOutboundFromEvent = (event: APIGatewayProxyEventV2, fro
 
 export const extractJsonPatchFromEvent = (event: APIGatewayProxyEventV2): PatchOperation[] =>
   parseEventBody(event) as PatchOperation[]
+
+export const extractPushSubscriptionFromEvent = (event: APIGatewayProxyEventV2): PushSubscription =>
+  formatPushSubscription((parseEventBody(event) as { subscription: PushSubscription })?.subscription)
 
 export const extractJwtFromEvent = (event: APIGatewayProxyEventV2): StringObject =>
   jwt.decode(

@@ -1,10 +1,19 @@
-import { account, attachmentId, email, emailContents, emailId, jsonPatchOperations, outboundEmail } from '../__mocks__'
+import {
+  account,
+  attachmentId,
+  email,
+  emailContents,
+  emailId,
+  jsonPatchOperations,
+  outboundEmail,
+  pushSubscription,
+} from '../__mocks__'
 import patchEventJson from '@events/patch-account.json'
 import putAccountEventJson from '@events/put-account.json'
 import getEventJson from '@events/received/get-email.json'
 import putEmailEventJson from '@events/received/put-email.json'
 import postEventJson from '@events/sent/post-email.json'
-import { Account, APIGatewayProxyEventV2, Email, EmailAttachment, EmailOutbound } from '@types'
+import { Account, APIGatewayProxyEventV2, Email, EmailAttachment, EmailOutbound, PushSubscription } from '@types'
 import {
   convertOutboundToContents,
   convertOutboundToEmail,
@@ -13,9 +22,11 @@ import {
   extractEmailOutboundFromEvent,
   extractJsonPatchFromEvent,
   extractJwtFromEvent,
+  extractPushSubscriptionFromEvent,
   formatAccount,
   formatEmail,
   formatEmailOutbound,
+  formatPushSubscription,
   validateUsernameInEvent,
 } from '@utils/events'
 
@@ -72,6 +83,73 @@ describe('events', () => {
         const invalidAccount = { ...account, bounceSenders } as unknown as Account
 
         expect(() => formatAccount(invalidAccount)).toThrow()
+      })
+    })
+  })
+
+  describe('push subscriptions', () => {
+    describe('formatPushSubscription', () => {
+      it('should return only endpoint and keys', () => {
+        const subscriptionWithExtra = { ...pushSubscription, expirationTime: 12345 } as PushSubscription
+
+        expect(formatPushSubscription(subscriptionWithExtra)).toEqual({
+          endpoint: 'https://push.example.com/subscription/first',
+          keys: { auth: 'auth-secret-first', p256dh: 'p256dh-key-first' },
+        })
+      })
+
+      it.each([undefined, '', 'http://push.example.com/subscription', 42])(
+        'should throw on invalid endpoint - %s',
+        (endpoint) => {
+          const invalid = { ...pushSubscription, endpoint } as unknown as PushSubscription
+
+          expect(() => formatPushSubscription(invalid)).toThrow()
+        },
+      )
+
+      it('should throw on an endpoint longer than 2048 characters', () => {
+        const invalid = {
+          ...pushSubscription,
+          endpoint: `https://push.example.com/${'a'.repeat(2048)}`,
+        } as PushSubscription
+
+        expect(() => formatPushSubscription(invalid)).toThrow()
+      })
+
+      it.each([undefined, {}, { auth: 'auth-secret-first' }, { p256dh: 'p256dh-key-first' }])(
+        'should throw on invalid keys - %s',
+        (keys) => {
+          const invalid = { ...pushSubscription, keys } as unknown as PushSubscription
+
+          expect(() => formatPushSubscription(invalid)).toThrow()
+        },
+      )
+
+      it('should throw on a missing subscription', () => {
+        expect(() => formatPushSubscription(undefined as unknown as PushSubscription)).toThrow()
+      })
+    })
+
+    describe('extractPushSubscriptionFromEvent', () => {
+      it('should extract the subscription from the body', () => {
+        const event = { body: JSON.stringify({ subscription: pushSubscription }) } as APIGatewayProxyEventV2
+
+        expect(extractPushSubscriptionFromEvent(event)).toEqual(pushSubscription)
+      })
+
+      it('should extract the subscription from a base64 body', () => {
+        const event = {
+          body: Buffer.from(JSON.stringify({ subscription: pushSubscription })).toString('base64'),
+          isBase64Encoded: true,
+        } as APIGatewayProxyEventV2
+
+        expect(extractPushSubscriptionFromEvent(event)).toEqual(pushSubscription)
+      })
+
+      it('should throw on a body with no subscription', () => {
+        const event = { body: JSON.stringify({}) } as APIGatewayProxyEventV2
+
+        expect(() => extractPushSubscriptionFromEvent(event)).toThrow()
       })
     })
   })
