@@ -75,6 +75,21 @@ describe('dynamodb', () => {
 
         await expect(getAccountById(accountId)).rejects.toThrow('Account not found')
       })
+
+      test('expect notificationPreview defaulted for a legacy account', async () => {
+        mockSend.mockResolvedValueOnce({
+          Item: { Data: { S: JSON.stringify({ forwardTargets: [], name: 'Legacy' }) } },
+        })
+
+        const result = await getAccountById(accountId)
+
+        expect(result).toEqual({
+          bounceSenders: [],
+          forwardTargets: [],
+          name: 'Legacy',
+          notificationPreview: 'sender-and-subject',
+        })
+      })
     })
 
     describe('getAccounts', () => {
@@ -88,7 +103,15 @@ describe('dynamodb', () => {
         const result = await getAccounts()
 
         expect(result).toEqual([
-          { data: { bounceSenders: [], forwardTargets: ['any@domain.com'], name: 'Any' }, id: 'account' },
+          {
+            data: {
+              bounceSenders: [],
+              forwardTargets: ['any@domain.com'],
+              name: 'Any',
+              notificationPreview: 'sender-and-subject',
+            },
+            id: 'account',
+          },
         ])
       })
 

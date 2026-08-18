@@ -31,8 +31,30 @@ describe('events', () => {
         const accountWithExtra = { ...account, something: 'invalid' } as unknown as Account
         const formattedAccount = formatAccount(accountWithExtra)
 
-        expect(formattedAccount).toEqual({ bounceSenders: [], forwardTargets: ['any@domain.com'], name: 'Any' })
+        expect(formattedAccount).toEqual({
+          bounceSenders: [],
+          forwardTargets: ['any@domain.com'],
+          name: 'Any',
+          notificationPreview: 'sender-and-subject',
+        })
       })
+
+      it('should carry a valid notificationPreview through', () => {
+        const accountWithPreference = { ...account, notificationPreview: 'sender-only' } as Account
+        const formattedAccount = formatAccount(accountWithPreference)
+
+        expect(formattedAccount.notificationPreview).toEqual('sender-only')
+      })
+
+      it.each([undefined, 'everything'])(
+        'should default an unusable notificationPreview - %s',
+        (notificationPreview) => {
+          const accountWithBadPreference = { ...account, notificationPreview } as unknown as Account
+          const formattedAccount = formatAccount(accountWithBadPreference)
+
+          expect(formattedAccount.notificationPreview).toEqual('sender-and-subject')
+        },
+      )
 
       it.each([undefined, 'a string'])('should throw error on invalid forwardTargets - %s', (forwardTargets) => {
         const invalidAccount = { ...account, forwardTargets } as unknown as Account

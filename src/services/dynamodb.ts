@@ -11,16 +11,18 @@ import {
 } from '@aws-sdk/client-dynamodb'
 
 import { dynamodbAccountsTableName, dynamodbReceivedTableName, dynamodbSentTableName } from '../config'
-import { Account, AccountBatch, Email, EmailBatch } from '../types'
+import { Account, AccountBatch, DEFAULT_NOTIFICATION_PREVIEW, Email, EmailBatch } from '../types'
 import { xrayCapture } from '../utils/logging'
 
 const dynamodb = xrayCapture(new DynamoDBClient({ apiVersion: '2012-08-10' }))
 
 /* Accounts */
 
+// The single place the default is applied on read, so every consumer receives a concrete value.
 const normalizeLegacyAccount = (account: Partial<Account>): Account =>
   ({
     bounceSenders: [],
+    notificationPreview: DEFAULT_NOTIFICATION_PREVIEW,
     ...account,
   }) as Account
 

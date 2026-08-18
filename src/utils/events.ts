@@ -4,12 +4,14 @@ import {
   Account,
   APIGatewayProxyEventV2,
   AttachmentCommon,
+  DEFAULT_NOTIFICATION_PREVIEW,
   Email,
   EmailAddress,
   EmailAttachment,
   EmailContents,
   EmailHeaders,
   EmailOutbound,
+  NOTIFICATION_PREVIEWS,
   PatchOperation,
   StringObject,
 } from '../types'
@@ -31,6 +33,13 @@ export const formatAccount = (account: Account): Account => {
     bounceSenders: account.bounceSenders,
     forwardTargets: account.forwardTargets,
     name: account.name,
+    // formatAccount rebuilds the account from a fixed field list and runs on both the PUT and the
+    // PATCH path, so anything missing here is silently dropped on every account write. An unknown or
+    // absent value resolves to the default instead of throwing, so a client that predates the field
+    // can still save.
+    notificationPreview: NOTIFICATION_PREVIEWS.includes(account.notificationPreview)
+      ? account.notificationPreview
+      : DEFAULT_NOTIFICATION_PREVIEW,
   }
 }
 

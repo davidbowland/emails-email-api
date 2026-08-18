@@ -1,7 +1,10 @@
-export * from 'aws-lambda'
-export { AxiosResponse } from 'axios'
-export { ParsedMail } from 'mailparser'
-export { Operation as PatchOperation } from 'fast-json-patch'
+// These re-exports must be `export type`: this module now also exports runtime constants, so it is
+// emitted as a real module rather than erased, and `aws-lambda` is a types-only package with nothing
+// to require at runtime.
+export type * from 'aws-lambda'
+export type { AxiosResponse } from 'axios'
+export type { ParsedMail } from 'mailparser'
+export type { Operation as PatchOperation } from 'fast-json-patch'
 
 export interface StringObject {
   [key: string]: string
@@ -31,10 +34,17 @@ export interface AttachmentContents {
 
 // Accounts
 
+export type NotificationPreview = 'sender-and-subject' | 'sender-only' | 'none'
+
+export const NOTIFICATION_PREVIEWS: NotificationPreview[] = ['sender-and-subject', 'sender-only', 'none']
+
+export const DEFAULT_NOTIFICATION_PREVIEW: NotificationPreview = 'sender-and-subject'
+
 export interface Account {
   bounceSenders: string[]
   forwardTargets: string[]
   name: string
+  notificationPreview: NotificationPreview
 }
 
 export interface AccountBatch {

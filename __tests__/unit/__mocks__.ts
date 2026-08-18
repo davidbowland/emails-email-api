@@ -17,6 +17,7 @@ export const account: Account = {
   bounceSenders: [],
   forwardTargets: ['any@domain.com'],
   name: 'Any',
+  notificationPreview: 'sender-and-subject',
 }
 
 export const accountBatch: AccountBatch[] = [
