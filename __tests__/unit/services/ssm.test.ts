@@ -53,6 +53,17 @@ describe('ssm', () => {
       expect(second).toEqual('cached-value')
     })
 
+    it('should invoke the fetcher once for overlapping calls', async () => {
+      const fetchValue = jest.fn().mockResolvedValue('cached-value')
+      const getValue = memoized(fetchValue)
+
+      const [first, second] = await Promise.all([getValue(), getValue()])
+
+      expect(fetchValue).toHaveBeenCalledTimes(1)
+      expect(first).toEqual('cached-value')
+      expect(second).toEqual('cached-value')
+    })
+
     it('should fetch again after a rejected fetch', async () => {
       const fetchValue = jest.fn().mockRejectedValueOnce(new Error('SSM unavailable')).mockResolvedValue('late-value')
       const getValue = memoized(fetchValue)
