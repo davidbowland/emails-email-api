@@ -1,4 +1,4 @@
-import { account } from '../__mocks__'
+import { account, accountId } from '../__mocks__'
 import eventJson from '@events/delete-account.json'
 import { deleteAccountHandler } from '@handlers/delete-account'
 import * as dynamodb from '@services/dynamodb'
@@ -30,6 +30,20 @@ describe('delete-account', () => {
       jest.mocked(dynamodb).deleteAccountById.mockRejectedValueOnce(undefined)
       const result = await deleteAccountHandler(event)
 
+      expect(result).toEqual(expect.objectContaining(status.INTERNAL_SERVER_ERROR))
+    })
+
+    it('should delete the push subscriptions along with the account', async () => {
+      await deleteAccountHandler(event)
+
+      expect(jest.mocked(dynamodb).deletePushSubscriptionsById).toHaveBeenCalledWith(accountId)
+    })
+
+    it('should leave the account in place when the subscription delete rejects', async () => {
+      jest.mocked(dynamodb).deletePushSubscriptionsById.mockRejectedValueOnce(new Error('DynamoDB unavailable'))
+      const result = await deleteAccountHandler(event)
+
+      expect(jest.mocked(dynamodb).deleteAccountById).not.toHaveBeenCalled()
       expect(result).toEqual(expect.objectContaining(status.INTERNAL_SERVER_ERROR))
     })
 

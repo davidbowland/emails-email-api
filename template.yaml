@@ -166,9 +166,12 @@ Resources:
         - AWSLambdaBasicExecutionRole
         - DynamoDBCrudPolicy:
             TableName: !Ref AccountTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PushSubscriptionTable
       Environment:
         Variables:
           DYNAMODB_ACCOUNTS_TABLE_NAME: !Ref AccountTable
+          DYNAMODB_PUSH_SUBSCRIPTIONS_TABLE_NAME: !Ref PushSubscriptionTable
       Events:
         ApiKey:
           Type: Api
