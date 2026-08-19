@@ -598,7 +598,7 @@ describe('events', () => {
         })
       })
 
-      it('should return null on invalid JWT', () => {
+      it('should return an empty object on invalid JWT', () => {
         const result = extractJwtFromEvent({
           ...getEventJson,
           headers: {
@@ -606,14 +606,14 @@ describe('events', () => {
           },
         } as unknown as APIGatewayProxyEventV2)
 
-        expect(result).toBeNull()
+        expect(result).toEqual({})
       })
 
-      it('should return null on missing header', () => {
+      it('should return an empty object on missing header', () => {
         const event = { ...getEventJson, headers: {} } as unknown as APIGatewayProxyEventV2
         const result = extractJwtFromEvent(event)
 
-        expect(result).toBeNull()
+        expect(result).toEqual({})
       })
     })
 
@@ -697,6 +697,18 @@ describe('events', () => {
 
         expect(result).toEqual(true)
       })
+
+      // A bearer token this API cannot parse is a denied caller, not a crash. Returning false here is
+      // what makes every route answer 403 for one, instead of each handler improvising a status from
+      // whatever a TypeError happened to land in.
+      it.each(['Bearer invalid jwt', 'not-even-a-bearer-token', ''])(
+        'should return false for an unparseable bearer token - %s',
+        (authorization) => {
+          const event = { ...getEventJson, headers: { authorization } } as unknown as APIGatewayProxyEventV2
+
+          expect(validateUsernameInEvent(event, username)).toEqual(false)
+        },
+      )
     })
   })
 })

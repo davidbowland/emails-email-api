@@ -9,12 +9,15 @@ assertRequiredEnv('DYNAMODB_PUSH_SUBSCRIPTIONS_TABLE_NAME')
 
 export const postSubscriptionHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
   log('Received event', redactEvent(event))
-  try {
-    const accountId = event.pathParameters?.accountId as string
-    if (!validateUsernameInEvent(event, accountId)) {
-      return status.FORBIDDEN
-    }
+  // The access decision sits outside the try below, which answers any throw with a 400 carrying that
+  // error's message. Same shape as get-account.ts. An access check must not be reported to the
+  // caller as a malformed body, and nothing about how it failed belongs in the response.
+  const accountId = event.pathParameters?.accountId as string
+  if (!validateUsernameInEvent(event, accountId)) {
+    return status.FORBIDDEN
+  }
 
+  try {
     const subscription = extractPushSubscriptionFromEvent(event)
     try {
       const existing = await getPushSubscriptionsById(accountId)

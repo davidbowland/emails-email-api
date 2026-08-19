@@ -290,10 +290,14 @@ export const extractJsonPatchFromEvent = (event: APIGatewayProxyEventV2): PatchO
 export const extractPushSubscriptionFromEvent = (event: APIGatewayProxyEventV2): PushSubscription =>
   formatPushSubscription((parseEventBody(event) as { subscription: PushSubscription })?.subscription)
 
+// jwt.decode returns null for anything it cannot parse -- a truncated, corrupt or absent bearer
+// value -- and the declared StringObject return type hid that from every caller. Resolving it to an
+// empty object keeps the type honest and makes validateUsernameInEvent below answer "not this
+// account" instead of throwing a TypeError, which handlers were turning into a 400 or a 500
+// depending on where the throw landed. An unreadable token is a denied caller: 403.
 export const extractJwtFromEvent = (event: APIGatewayProxyEventV2): StringObject =>
-  jwt.decode(
-    (event.headers.authorization || event.headers.Authorization || '').replace(/^Bearer /i, ''),
-  ) as StringObject
+  (jwt.decode((event.headers.authorization || event.headers.Authorization || '').replace(/^Bearer /i, '')) ??
+    {}) as StringObject
 
 export const validateUsernameInEvent = (event: APIGatewayProxyEventV2, username: string): boolean => {
   if (

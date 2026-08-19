@@ -13,12 +13,15 @@ export const deleteSubscriptionHandler = async (
   event: APIGatewayProxyEventV2,
 ): Promise<APIGatewayProxyResultV2<any>> => {
   log('Received event', redactEvent(event))
-  try {
-    const accountId = event.pathParameters?.accountId as string
-    if (!validateUsernameInEvent(event, accountId)) {
-      return status.FORBIDDEN
-    }
+  // Outside the try below for the same reason as post-subscription.ts: that catch means "the
+  // infrastructure failed" and answers 500, which is the wrong thing to tell a caller whose token
+  // could not be read. Both routes now answer an unreadable token the same way, with a 403.
+  const accountId = event.pathParameters?.accountId as string
+  if (!validateUsernameInEvent(event, accountId)) {
+    return status.FORBIDDEN
+  }
 
+  try {
     const endpoint = event.queryStringParameters?.endpoint
     if (!endpoint) {
       return status.BAD_REQUEST
