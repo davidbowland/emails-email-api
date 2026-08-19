@@ -250,10 +250,14 @@ describe('dynamodb', () => {
         mockSend.mockResolvedValue({ Item: { Data: { S: JSON.stringify(account) } } })
       })
 
-      it('should pass accountId and emailId to get', async () => {
+      // ConsistentRead matters here: emails-inbound-service writes the email and then, from a
+      // different Lambda, asks this API to notify. An eventually-consistent read of that item can
+      // miss it, and a missed notify is never retried.
+      it('should pass accountId and emailId to a consistent get', async () => {
         await getReceivedById(accountId, emailId)
 
         expect(mockSend).toHaveBeenCalledWith({
+          ConsistentRead: true,
           Key: {
             Account: {
               S: `${accountId}`,

@@ -163,8 +163,16 @@ export const deleteReceivedById = async (account: string, id: string): Promise<D
   return dynamodb.send(command)
 }
 
+// ConsistentRead because emails-inbound-service PUTs a received email through one Lambda and then
+// immediately asks this API to notify from another. An eventually-consistent read served by a stale
+// replica returns no item, post-notify treats that as 'Email not found' and answers 204, the caller
+// treats any 2xx as success, and nothing retries -- the mail arrives and the phone stays silent,
+// with no ERROR anywhere an operator would look. The cost is one extra RCU on a small single-item
+// read; correctness on the notify path is worth more than that to every other caller as well, since
+// patch-email and post-bounce read-modify-write the same item.
 export const getReceivedById = async (account: string, id: string): Promise<Email> => {
   const command = new GetItemCommand({
+    ConsistentRead: true,
     Key: {
       Account: {
         S: `${account}`,
