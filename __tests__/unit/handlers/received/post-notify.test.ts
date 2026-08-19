@@ -72,6 +72,15 @@ describe('post-notify', () => {
       })
     })
 
+    it('should return INTERNAL_SERVER_ERROR when the account read faults', async () => {
+      jest.mocked(dynamodb).getAccountById.mockRejectedValueOnce(new Error('ThrottlingException'))
+
+      const result = await notifyEmailHandler(event)
+
+      expect(jest.mocked(push).sendPushNotifications).not.toHaveBeenCalled()
+      expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
+    })
+
     it('should send the emailId alone when from yields no label', async () => {
       jest.mocked(dynamodb).getReceivedById.mockResolvedValueOnce({ ...namedEmail, from: '<>' } as Email)
 

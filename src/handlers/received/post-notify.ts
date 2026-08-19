@@ -26,13 +26,21 @@ assertRequiredEnv(
   'VAPID_SUBJECT',
 )
 
+const isSentinel = (error: unknown, message: string): boolean => (error as Error)?.message === message
+
 // getAccountById throws 'Account not found' rather than returning undefined. A missing account is
-// treated as the default preview.
+// treated as the default preview -- but ONLY that sentinel. A ThrottlingException, a socket timeout
+// or an AccessDeniedException must not be read as "no stored preference", because defaulting on an
+// infrastructure fault would put the sender and the subject on the lock screen of somebody who chose
+// 'none'. Anything else rethrows, becoming a 500 that logError puts in front of an admin.
 const getNotificationPreview = async (accountId: string): Promise<NotificationPreview> => {
   try {
     const account = await getAccountById(accountId)
     return account.notificationPreview
-  } catch {
+  } catch (error) {
+    if (!isSentinel(error, 'Account not found')) {
+      throw error
+    }
     log('Account not found for notify, using the default preview', { accountId })
     return DEFAULT_NOTIFICATION_PREVIEW
   }
