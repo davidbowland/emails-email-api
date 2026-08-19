@@ -3,7 +3,7 @@
 # Provisions the SSM parameters the emails fleet reads at runtime.
 #
 # This repo owns the SHARED /emails/* paths as well as its own /emails-email-api/* paths. Other
-# repos' READMEs link here; no other repo writes /emails/queue-api-key.
+# repos' READMEs link here; no other repo writes a shared /emails/* value.
 #
 # Parameters must exist BEFORE the first deploy of the stacks that read them, or the stack comes up
 # with Lambdas that throw on their first invocation.
@@ -116,6 +116,13 @@ put_vapid_key() {
 
 # The queue API key, shared with emails-inbound-service. Rotating this one is routine.
 prompt_and_put "${SHARED_PREFIX}/queue-api-key" "Queue API key"
+
+# This API's own key, read by emails-inbound-service to authenticate every call it makes here. This
+# script is the only thing that writes it, and its absence is silent: the inbound Lambda catches the
+# ParameterNotFound, logs it, and leaves the message in S3 unregistered, unforwarded, unbounced.
+# Both keys are API Gateway keys; read one back with:
+#   aws apigateway get-api-key --api-key <id> --include-value --region us-east-1 | jq -r .value
+prompt_and_put "${SHARED_PREFIX}/emails-api-key" "Emails API key"
 
 # The VAPID keypair. Generate a new one with:
 #   npx web-push generate-vapid-keys

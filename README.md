@@ -87,14 +87,19 @@ Application secrets live in SSM Parameter Store and are read at runtime by the L
 | Path                                  | `-test` sibling                            | Type         | Read by                                      |
 | ------------------------------------- | ------------------------------------------ | ------------ | -------------------------------------------- |
 | `/emails/queue-api-key`               | `/emails-test/queue-api-key`               | SecureString | `emails-email-api`, `emails-inbound-service` |
+| `/emails/emails-api-key`              | `/emails-test/emails-api-key`              | SecureString | `emails-inbound-service`                     |
 | `/emails-email-api/vapid-public-key`  | `/emails-email-api-test/vapid-public-key`  | SecureString | `emails-email-api`                           |
 | `/emails-email-api/vapid-private-key` | `/emails-email-api-test/vapid-private-key` | SecureString | `emails-email-api`                           |
 
-The queue API key sits at a shared `/emails/` path on purpose: it is one credential used by two services, and a per-repo path would mean two places to edit on every rotation.
+The two API keys sit at shared `/emails/` paths on purpose: each is one credential used by more than one service, and a per-repo path would mean two places to edit on every rotation. `/emails/emails-api-key` is this API's own API Gateway key — `emails-inbound-service` sends it as `x-api-key` on every call it makes here. Nothing in that repo writes it; this script does. Read either value back with:
+
+```bash
+aws apigateway get-api-key --api-key <id> --include-value --region us-east-1 | jq -r .value
+```
 
 ### Provisioning
 
-**Parameters must exist before the first deploy of the stack that reads them.** A stack whose parameters are missing deploys successfully and then fails on the first invocation.
+**Parameters must exist before the first deploy of the stacks that read them, in this repo and in `emails-inbound-service`.** A stack whose parameters are missing deploys successfully and then fails on the first invocation.
 
 Generate a VAPID keypair:
 
