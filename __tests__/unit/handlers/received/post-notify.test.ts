@@ -1,12 +1,4 @@
-import {
-  account,
-  accountId,
-  email,
-  emailId,
-  otherPushSubscription,
-  pushSubscription,
-  pushSubscriptions,
-} from '../../__mocks__'
+import { account, accountId, email, emailId, otherPushSubscription, pushSubscriptions } from '../../__mocks__'
 import eventJson from '@events/received/post-notify.json'
 import { notifyEmailHandler } from '@handlers/received/post-notify'
 import * as dynamodb from '@services/dynamodb'
@@ -143,11 +135,12 @@ describe('post-notify', () => {
       expect(jest.mocked(dynamodb).setPushSubscriptionsById).not.toHaveBeenCalled()
     })
 
-    it('should return NO_CONTENT when every send fails', async () => {
-      jest.mocked(push).sendPushNotifications.mockResolvedValueOnce([pushSubscription, otherPushSubscription])
+    it('should prune every subscription when the push service drops them all', async () => {
+      jest.mocked(push).sendPushNotifications.mockResolvedValueOnce([])
 
       const result = await notifyEmailHandler(event)
 
+      expect(jest.mocked(dynamodb).setPushSubscriptionsById).toHaveBeenCalledWith(accountId, [])
       expect(result).toEqual(status.NO_CONTENT)
     })
 

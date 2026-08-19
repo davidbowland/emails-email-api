@@ -98,14 +98,19 @@ describe('events', () => {
         })
       })
 
-      it.each([undefined, '', 'http://push.example.com/subscription', 42])(
-        'should throw on invalid endpoint - %s',
-        (endpoint) => {
-          const invalid = { ...pushSubscription, endpoint } as unknown as PushSubscription
+      // Every case asserts the message, not just that something threw: each rejection has its own
+      // reason, and a bare toThrow() would pass on the wrong one -- an over-long endpoint caught by
+      // the https check, say, or a missing key caught by the endpoint check.
+      it.each([
+        [undefined, 'subscription.endpoint must be a non-empty string'],
+        ['', 'subscription.endpoint must be a non-empty string'],
+        [42, 'subscription.endpoint must be a non-empty string'],
+        ['http://push.example.com/subscription', 'subscription.endpoint must be an https URL'],
+      ])('should throw on invalid endpoint - %s', (endpoint, message) => {
+        const invalid = { ...pushSubscription, endpoint } as unknown as PushSubscription
 
-          expect(() => formatPushSubscription(invalid)).toThrow()
-        },
-      )
+        expect(() => formatPushSubscription(invalid)).toThrow(message)
+      })
 
       it('should throw on an endpoint longer than 2048 characters', () => {
         const invalid = {
@@ -113,20 +118,24 @@ describe('events', () => {
           endpoint: `https://push.example.com/${'a'.repeat(2048)}`,
         } as PushSubscription
 
-        expect(() => formatPushSubscription(invalid)).toThrow()
+        expect(() => formatPushSubscription(invalid)).toThrow('subscription.endpoint must be 2048 characters or fewer')
       })
 
-      it.each([undefined, {}, { auth: 'auth-secret-first' }, { p256dh: 'p256dh-key-first' }])(
-        'should throw on invalid keys - %s',
-        (keys) => {
-          const invalid = { ...pushSubscription, keys } as unknown as PushSubscription
+      it.each([
+        [undefined, 'subscription.keys.p256dh must be a non-empty string'],
+        [{}, 'subscription.keys.p256dh must be a non-empty string'],
+        [{ auth: 'auth-secret-first' }, 'subscription.keys.p256dh must be a non-empty string'],
+        [{ p256dh: 'p256dh-key-first' }, 'subscription.keys.auth must be a non-empty string'],
+      ])('should throw on invalid keys - %s', (keys, message) => {
+        const invalid = { ...pushSubscription, keys } as unknown as PushSubscription
 
-          expect(() => formatPushSubscription(invalid)).toThrow()
-        },
-      )
+        expect(() => formatPushSubscription(invalid)).toThrow(message)
+      })
 
       it('should throw on a missing subscription', () => {
-        expect(() => formatPushSubscription(undefined as unknown as PushSubscription)).toThrow()
+        expect(() => formatPushSubscription(undefined as unknown as PushSubscription)).toThrow(
+          'subscription.endpoint must be a non-empty string',
+        )
       })
     })
 
