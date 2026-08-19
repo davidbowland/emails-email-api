@@ -6,13 +6,7 @@ import {
   setPushSubscriptionsById,
 } from '../../services/dynamodb'
 import { sendPushNotifications } from '../../services/push'
-import {
-  APIGatewayProxyEventV2,
-  APIGatewayProxyResultV2,
-  DEFAULT_NOTIFICATION_PREVIEW,
-  Email,
-  NotificationPreview,
-} from '../../types'
+import { APIGatewayProxyEventV2, APIGatewayProxyResultV2, Email, NotificationPreview } from '../../types'
 import { log, logError, redactEvent } from '../../utils/logging'
 import { buildPushPayload, fitPushPayload } from '../../utils/push'
 import status from '../../utils/status'
@@ -28,11 +22,18 @@ assertRequiredEnv(
 
 const isSentinel = (error: unknown, message: string): boolean => (error as Error)?.message === message
 
-// getAccountById throws 'Account not found' rather than returning undefined. A missing account is
-// treated as the default preview -- but ONLY that sentinel. A ThrottlingException, a socket timeout
-// or an AccessDeniedException must not be read as "no stored preference", because defaulting on an
+// getAccountById throws 'Account not found' rather than returning undefined. A missing account falls
+// back to 'none' -- but ONLY on that sentinel. A ThrottlingException, a socket timeout or an
+// AccessDeniedException must not be read as "no stored preference", because defaulting on an
 // infrastructure fault would put the sender and the subject on the lock screen of somebody who chose
 // 'none'. Anything else rethrows, becoming a 500 that logError puts in front of an admin.
+//
+// 'none' rather than DEFAULT_NOTIFICATION_PREVIEW, by the same rule as formatAccount (utils/
+// events.ts): the default is the welcome for an account that exists and predates the field, and
+// normalizeLegacyAccount (services/dynamodb.ts) applies it there. An account that is not in the
+// table at all has told us nothing, and the answer to a request that says nothing is the quietest
+// tier. Nothing about a notification for an unknown account should reveal more than one for a known
+// one.
 const getNotificationPreview = async (accountId: string): Promise<NotificationPreview> => {
   try {
     const account = await getAccountById(accountId)
@@ -41,8 +42,8 @@ const getNotificationPreview = async (accountId: string): Promise<NotificationPr
     if (!isSentinel(error, 'Account not found')) {
       throw error
     }
-    log('Account not found for notify, using the default preview', { accountId })
-    return DEFAULT_NOTIFICATION_PREVIEW
+    log('Account not found for notify, using the quietest preview', { accountId })
+    return 'none'
   }
 }
 

@@ -52,16 +52,12 @@ describe('post-notify', () => {
       expect(jest.mocked(push).sendPushNotifications).toHaveBeenCalledWith(pushSubscriptions, { emailId })
     })
 
-    it('should use the default tier when the account is missing', async () => {
+    it('should use the quietest tier when the account is missing', async () => {
       jest.mocked(dynamodb).getAccountById.mockRejectedValueOnce(new Error('Account not found'))
 
       await notifyEmailHandler(event)
 
-      expect(jest.mocked(push).sendPushNotifications).toHaveBeenCalledWith(pushSubscriptions, {
-        emailId,
-        senderLabel: 'Sarah Smith',
-        subject: 'Hello, world',
-      })
+      expect(jest.mocked(push).sendPushNotifications).toHaveBeenCalledWith(pushSubscriptions, { emailId })
     })
 
     it('should return INTERNAL_SERVER_ERROR when the account read faults', async () => {
