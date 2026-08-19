@@ -58,12 +58,12 @@ describe('events', () => {
       })
 
       it.each([undefined, 'everything'])(
-        'should default an unusable notificationPreview - %s',
+        'should fall back to the quietest notificationPreview on write - %s',
         (notificationPreview) => {
           const accountWithBadPreference = { ...account, notificationPreview } as unknown as Account
           const formattedAccount = formatAccount(accountWithBadPreference)
 
-          expect(formattedAccount.notificationPreview).toEqual('sender-and-subject')
+          expect(formattedAccount.notificationPreview).toEqual('none')
         },
       )
 
@@ -546,6 +546,18 @@ describe('events', () => {
         const result = extractAccountFromEvent(tempEvent)
 
         expect(result).toEqual(account)
+      })
+
+      // The body a device running a stale precached emails-ui bundle sends: the four fields that
+      // predate notificationPreview. It must not raise the tier the account already chose.
+      it('should fall back to the quietest tier for a body without notificationPreview', () => {
+        const tempEvent = {
+          ...event,
+          body: JSON.stringify({ bounceSenders: [], forwardTargets: ['any@domain.com'], name: 'Any' }),
+        } as unknown as APIGatewayProxyEventV2
+        const result = extractAccountFromEvent(tempEvent)
+
+        expect(result).toEqual({ ...account, notificationPreview: 'none' })
       })
 
       it('should reject invalid event', () => {

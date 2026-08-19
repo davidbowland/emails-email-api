@@ -4,7 +4,6 @@ import {
   Account,
   APIGatewayProxyEventV2,
   AttachmentCommon,
-  DEFAULT_NOTIFICATION_PREVIEW,
   Email,
   EmailAddress,
   EmailAttachment,
@@ -36,11 +35,20 @@ export const formatAccount = (account: Account): Account => {
     name: account.name,
     // formatAccount rebuilds the account from a fixed field list and runs on both the PUT and the
     // PATCH path, so anything missing here is silently dropped on every account write. An unknown or
-    // absent value resolves to the default instead of throwing, so a client that predates the field
-    // can still save.
+    // absent value resolves to a tier instead of throwing, so a client that predates the field can
+    // still save.
+    //
+    // This fallback is deliberately NOT DEFAULT_NOTIFICATION_PREVIEW, which normalizeLegacyAccount
+    // (services/dynamodb.ts) applies on the READ path. The asymmetry is the point. Absent on read
+    // means "this account never chose", and the most informative tier is the right welcome. Absent
+    // on WRITE means "this client cannot express the choice" -- setAccountById is a PutItemCommand
+    // and put-account.ts never reads the stored item first, so a PUT from a device running a stale
+    // precached emails-ui bundle would overwrite a deliberate 'none' with 'sender-and-subject' and
+    // start putting mail on that person's lock screen without a word. The quietest tier is the only
+    // safe answer to a request that says nothing.
     notificationPreview: NOTIFICATION_PREVIEWS.includes(account.notificationPreview)
       ? account.notificationPreview
-      : DEFAULT_NOTIFICATION_PREVIEW,
+      : 'none',
   }
 }
 

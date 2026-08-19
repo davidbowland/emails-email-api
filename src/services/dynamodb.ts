@@ -24,6 +24,10 @@ const dynamodb = xrayCapture(new DynamoDBClient({ apiVersion: '2012-08-10' }))
 /* Accounts */
 
 // The single place the default is applied on read, so every consumer receives a concrete value.
+// This keeps DEFAULT_NOTIFICATION_PREVIEW while formatAccount (utils/events.ts) falls back to 'none'
+// on the write path. That is intentional, not a drift: absent on READ means "this account predates
+// the field and never chose", so the most informative tier is the right welcome, while absent on
+// WRITE means "this client cannot express the choice" and must not overwrite a deliberate 'none'.
 const normalizeLegacyAccount = (account: Partial<Account>): Account =>
   ({
     bounceSenders: [],
