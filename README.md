@@ -139,6 +139,8 @@ Rotating the **VAPID keypair invalidates every existing push subscription**. The
 ./scripts/putSsmParameters.sh prod --rotate-vapid
 ```
 
+A rotation takes both halves of the new keypair in one run: the script reads both prompts before it writes either parameter, and aborts without writing anything if only one arrives. A new public key stored beside the old private key breaks push for every device in the environment and nothing reports it — the push service rejects each send, no subscription is pruned, and the settings page still says notifications are on.
+
 ## Additional Documentation
 
 - [AWS Lambda](https://aws.amazon.com/lambda/)
