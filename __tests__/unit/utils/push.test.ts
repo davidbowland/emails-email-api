@@ -4,6 +4,7 @@ import {
   buildPushPayload,
   extractSenderLabel,
   fitPushPayload,
+  PUSH_PAYLOAD_MAX_BYTES,
   PUSH_SENDER_LABEL_MAX_LENGTH,
   PUSH_SUBJECT_MAX_LENGTH,
   truncateForPush,
@@ -106,6 +107,23 @@ describe('push', () => {
       const payload = { emailId, senderLabel: 'd'.repeat(4000), subject: 'e'.repeat(4000) }
 
       expect(fitPushPayload(payload)).toEqual({ emailId })
+    })
+
+    // The two shed branches above are unreachable from buildPushPayload, which caps both text
+    // fields first. This pins that: the widest payload the builder can produce -- both fields at
+    // their cap in 4-byte characters, the most expensive case per code point -- still fits, so
+    // fitPushPayload is defence in depth rather than live behavior. Raising a cap or adding an
+    // uncapped field far enough to break the budget breaks this test first.
+    it('should leave the widest payload buildPushPayload can produce unchanged', () => {
+      const widestEmail = {
+        ...email,
+        from: `"${'𝕏'.repeat(PUSH_SENDER_LABEL_MAX_LENGTH + 50)}" <sarah@example.com>`,
+        subject: '𝕏'.repeat(PUSH_SUBJECT_MAX_LENGTH + 50),
+      } as Email
+      const widest = buildPushPayload(emailId, widestEmail, 'sender-and-subject')
+
+      expect(Buffer.byteLength(JSON.stringify(widest), 'utf8')).toBeLessThanOrEqual(PUSH_PAYLOAD_MAX_BYTES)
+      expect(fitPushPayload(widest)).toEqual(widest)
     })
   })
 })

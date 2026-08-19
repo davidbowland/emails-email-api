@@ -51,6 +51,15 @@ export const buildPushPayload = (emailId: string, email: Email, preview: Notific
 
 const payloadBytes = (payload: PushPayload): number => Buffer.byteLength(JSON.stringify(payload), 'utf8')
 
+// Neither shed branch below can run against anything buildPushPayload produces, and that is the
+// intended state, not dead code to delete. Both text fields are capped before this is called --
+// subject at 200 code points, senderLabel at 100 -- so the widest possible payload is roughly 1250
+// bytes of the 3500-byte budget even when every character costs four bytes. This function exists so
+// that adding a THIRD field, or an uncapped one, cannot silently push a notification past the RFC
+// 8291 ciphertext limit: the push service would reject the send, no subscription would be pruned
+// (only 404 and 410 prune), and the device would simply never hear about the email. The check is
+// cheap; discovering that failure in production is not. `__tests__/unit/utils/push.test.ts` pins
+// the headroom, so a future cap change fails there rather than in the field.
 export const fitPushPayload = (payload: PushPayload): PushPayload => {
   if (payloadBytes(payload) <= PUSH_PAYLOAD_MAX_BYTES) {
     return payload
