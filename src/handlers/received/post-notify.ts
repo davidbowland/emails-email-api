@@ -47,11 +47,16 @@ const getNotificationPreview = async (accountId: string): Promise<NotificationPr
 }
 
 // getReceivedById throws 'Email not found'. Nothing retries a notify call, so a missing email is a
-// warning and a 204, not an error.
+// warning and a 204, not an error -- but again, only that sentinel. A DynamoDB fault swallowed as a
+// 204 loses the notification silently: the caller in emails-inbound-service treats any 2xx as
+// success and moves on, and log() never trips the ERROR subscription filter, so nobody finds out.
 const getEmail = async (accountId: string, emailId: string): Promise<Email | undefined> => {
   try {
     return await getReceivedById(accountId, emailId)
-  } catch {
+  } catch (error) {
+    if (!isSentinel(error, 'Email not found')) {
+      throw error
+    }
     log('Email not found for notify', { accountId, emailId })
     return undefined
   }

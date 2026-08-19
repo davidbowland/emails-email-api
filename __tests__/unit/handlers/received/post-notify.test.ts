@@ -110,6 +110,15 @@ describe('post-notify', () => {
       expect(result).toEqual(status.NO_CONTENT)
     })
 
+    it('should return INTERNAL_SERVER_ERROR when the email read faults', async () => {
+      jest.mocked(dynamodb).getReceivedById.mockRejectedValueOnce(new Error('ThrottlingException'))
+
+      const result = await notifyEmailHandler(event)
+
+      expect(jest.mocked(push).sendPushNotifications).not.toHaveBeenCalled()
+      expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
+    })
+
     it('should return NO_CONTENT without sending when there are no subscriptions', async () => {
       jest.mocked(dynamodb).getPushSubscriptionsById.mockResolvedValueOnce([])
 
