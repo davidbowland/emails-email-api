@@ -116,10 +116,10 @@ Then write everything for one environment:
 
 The script prints the AWS account the current credentials belong to and waits for a yes before it writes anything — the parameter paths say `prod` or `test`, but nothing in them picks an account. Leave any prompt empty to leave that parameter alone, so rotating one secret never means retyping the others.
 
-Or write a single parameter by hand:
+Or write a single parameter by hand — with `--region`, because SSM parameters are region-scoped and one written outside `us-east-1` looks correct and is read by nothing:
 
 ```bash
-aws ssm put-parameter --type SecureString --overwrite \
+aws ssm put-parameter --region us-east-1 --type SecureString --overwrite \
   --name /emails-email-api-test/vapid-public-key --value 'BN...'
 ```
 
