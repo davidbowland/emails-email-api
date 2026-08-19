@@ -109,6 +109,8 @@ Then write everything for one environment:
 ./scripts/putSsmParameters.sh prod
 ```
 
+The script prints the AWS account the current credentials belong to and waits for a yes before it writes anything — the parameter paths say `prod` or `test`, but nothing in them picks an account. Leave any prompt empty to leave that parameter alone, so rotating one secret never means retyping the others.
+
 Or write a single parameter by hand:
 
 ```bash
@@ -126,7 +128,11 @@ Each parameter is memoized per warm Lambda container and the cache never expires
 2. Force cold starts — redeploy the consuming stacks, or touch an environment variable.
 3. Retire the old credential.
 
-Rotating the **VAPID keypair invalidates every existing push subscription**. The UI's self-heal recovers browsers that still have notification permission granted; nobody else. Do not rotate it casually.
+Rotating the **VAPID keypair invalidates every existing push subscription**. The UI's self-heal recovers browsers that still have notification permission granted; nobody else. Do not rotate it casually — the script refuses to overwrite a VAPID key that already exists unless you ask for it by name:
+
+```bash
+./scripts/putSsmParameters.sh prod --rotate-vapid
+```
 
 ## Additional Documentation
 
