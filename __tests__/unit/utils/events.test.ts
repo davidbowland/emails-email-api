@@ -1,10 +1,19 @@
-import { account, attachmentId, email, emailContents, emailId, jsonPatchOperations, outboundEmail } from '../__mocks__'
+import {
+  account,
+  attachmentId,
+  email,
+  emailContents,
+  emailId,
+  jsonPatchOperations,
+  outboundEmail,
+  pushSubscription,
+} from '../__mocks__'
 import patchEventJson from '@events/patch-account.json'
 import putAccountEventJson from '@events/put-account.json'
 import getEventJson from '@events/received/get-email.json'
 import putEmailEventJson from '@events/received/put-email.json'
 import postEventJson from '@events/sent/post-email.json'
-import { Account, APIGatewayProxyEventV2, Email, EmailAttachment, EmailOutbound } from '@types'
+import { Account, APIGatewayProxyEventV2, Email, EmailAttachment, EmailOutbound, PushSubscription } from '@types'
 import {
   convertOutboundToContents,
   convertOutboundToEmail,
@@ -13,9 +22,11 @@ import {
   extractEmailOutboundFromEvent,
   extractJsonPatchFromEvent,
   extractJwtFromEvent,
+  extractPushSubscriptionFromEvent,
   formatAccount,
   formatEmail,
   formatEmailOutbound,
+  formatPushSubscription,
   validateUsernameInEvent,
 } from '@utils/events'
 
@@ -31,8 +42,30 @@ describe('events', () => {
         const accountWithExtra = { ...account, something: 'invalid' } as unknown as Account
         const formattedAccount = formatAccount(accountWithExtra)
 
-        expect(formattedAccount).toEqual({ bounceSenders: [], forwardTargets: ['any@domain.com'], name: 'Any' })
+        expect(formattedAccount).toEqual({
+          bounceSenders: [],
+          forwardTargets: ['any@domain.com'],
+          name: 'Any',
+          notificationPreview: 'sender-and-subject',
+        })
       })
+
+      it('should carry a valid notificationPreview through', () => {
+        const accountWithPreference = { ...account, notificationPreview: 'sender-only' } as Account
+        const formattedAccount = formatAccount(accountWithPreference)
+
+        expect(formattedAccount.notificationPreview).toEqual('sender-only')
+      })
+
+      it.each([undefined, 'everything'])(
+        'should fall back to the quietest notificationPreview on write - %s',
+        (notificationPreview) => {
+          const accountWithBadPreference = { ...account, notificationPreview } as unknown as Account
+          const formattedAccount = formatAccount(accountWithBadPreference)
+
+          expect(formattedAccount.notificationPreview).toEqual('none')
+        },
+      )
 
       it.each([undefined, 'a string'])('should throw error on invalid forwardTargets - %s', (forwardTargets) => {
         const invalidAccount = { ...account, forwardTargets } as unknown as Account
@@ -50,6 +83,82 @@ describe('events', () => {
         const invalidAccount = { ...account, bounceSenders } as unknown as Account
 
         expect(() => formatAccount(invalidAccount)).toThrow()
+      })
+    })
+  })
+
+  describe('push subscriptions', () => {
+    describe('formatPushSubscription', () => {
+      it('should return only endpoint and keys', () => {
+        const subscriptionWithExtra = { ...pushSubscription, expirationTime: 12345 } as PushSubscription
+
+        expect(formatPushSubscription(subscriptionWithExtra)).toEqual({
+          endpoint: 'https://push.example.com/subscription/first',
+          keys: { auth: 'auth-secret-first', p256dh: 'p256dh-key-first' },
+        })
+      })
+
+      // Every case asserts the message, not just that something threw: each rejection has its own
+      // reason, and a bare toThrow() would pass on the wrong one -- an over-long endpoint caught by
+      // the https check, say, or a missing key caught by the endpoint check.
+      it.each([
+        [undefined, 'subscription.endpoint must be a non-empty string'],
+        ['', 'subscription.endpoint must be a non-empty string'],
+        [42, 'subscription.endpoint must be a non-empty string'],
+        ['http://push.example.com/subscription', 'subscription.endpoint must be an https URL'],
+      ])('should throw on invalid endpoint - %s', (endpoint, message) => {
+        const invalid = { ...pushSubscription, endpoint } as unknown as PushSubscription
+
+        expect(() => formatPushSubscription(invalid)).toThrow(message)
+      })
+
+      it('should throw on an endpoint longer than 2048 characters', () => {
+        const invalid = {
+          ...pushSubscription,
+          endpoint: `https://push.example.com/${'a'.repeat(2048)}`,
+        } as PushSubscription
+
+        expect(() => formatPushSubscription(invalid)).toThrow('subscription.endpoint must be 2048 characters or fewer')
+      })
+
+      it.each([
+        [undefined, 'subscription.keys.p256dh must be a non-empty string'],
+        [{}, 'subscription.keys.p256dh must be a non-empty string'],
+        [{ auth: 'auth-secret-first' }, 'subscription.keys.p256dh must be a non-empty string'],
+        [{ p256dh: 'p256dh-key-first' }, 'subscription.keys.auth must be a non-empty string'],
+      ])('should throw on invalid keys - %s', (keys, message) => {
+        const invalid = { ...pushSubscription, keys } as unknown as PushSubscription
+
+        expect(() => formatPushSubscription(invalid)).toThrow(message)
+      })
+
+      it('should throw on a missing subscription', () => {
+        expect(() => formatPushSubscription(undefined as unknown as PushSubscription)).toThrow(
+          'subscription.endpoint must be a non-empty string',
+        )
+      })
+    })
+
+    describe('extractPushSubscriptionFromEvent', () => {
+      it('should extract the subscription from the body', () => {
+        const event = { body: JSON.stringify({ subscription: pushSubscription }) } as APIGatewayProxyEventV2
+
+        expect(extractPushSubscriptionFromEvent(event)).toEqual(pushSubscription)
+      })
+
+      it('should extract the subscription from a base64 body', () => {
+        const event = {
+          body: Buffer.from(JSON.stringify({ subscription: pushSubscription })).toString('base64'),
+          isBase64Encoded: true,
+        } as APIGatewayProxyEventV2
+
+        expect(extractPushSubscriptionFromEvent(event)).toEqual(pushSubscription)
+      })
+
+      it('should throw on a body with no subscription', () => {
+        const event = { body: JSON.stringify({}) } as APIGatewayProxyEventV2
+
+        expect(() => extractPushSubscriptionFromEvent(event)).toThrow()
       })
     })
   })
@@ -448,6 +557,18 @@ describe('events', () => {
         expect(result).toEqual(account)
       })
 
+      // The body a device running a stale precached emails-ui bundle sends: the four fields that
+      // predate notificationPreview. It must not raise the tier the account already chose.
+      it('should fall back to the quietest tier for a body without notificationPreview', () => {
+        const tempEvent = {
+          ...event,
+          body: JSON.stringify({ bounceSenders: [], forwardTargets: ['any@domain.com'], name: 'Any' }),
+        } as unknown as APIGatewayProxyEventV2
+        const result = extractAccountFromEvent(tempEvent)
+
+        expect(result).toEqual({ ...account, notificationPreview: 'none' })
+      })
+
       it('should reject invalid event', () => {
         const tempEvent = { ...event, body: JSON.stringify({}) } as unknown as APIGatewayProxyEventV2
 
@@ -477,7 +598,7 @@ describe('events', () => {
         })
       })
 
-      it('should return null on invalid JWT', () => {
+      it('should return an empty object on invalid JWT', () => {
         const result = extractJwtFromEvent({
           ...getEventJson,
           headers: {
@@ -485,14 +606,14 @@ describe('events', () => {
           },
         } as unknown as APIGatewayProxyEventV2)
 
-        expect(result).toBeNull()
+        expect(result).toEqual({})
       })
 
-      it('should return null on missing header', () => {
+      it('should return an empty object on missing header', () => {
         const event = { ...getEventJson, headers: {} } as unknown as APIGatewayProxyEventV2
         const result = extractJwtFromEvent(event)
 
-        expect(result).toBeNull()
+        expect(result).toEqual({})
       })
     })
 
@@ -576,6 +697,18 @@ describe('events', () => {
 
         expect(result).toEqual(true)
       })
+
+      // A bearer token this API cannot parse is a denied caller, not a crash. Returning false here is
+      // what makes every route answer 403 for one, instead of each handler improvising a status from
+      // whatever a TypeError happened to land in.
+      it.each(['Bearer invalid jwt', 'not-even-a-bearer-token', ''])(
+        'should return false for an unparseable bearer token - %s',
+        (authorization) => {
+          const event = { ...getEventJson, headers: { authorization } } as unknown as APIGatewayProxyEventV2
+
+          expect(validateUsernameInEvent(event, username)).toEqual(false)
+        },
+      )
     })
   })
 })

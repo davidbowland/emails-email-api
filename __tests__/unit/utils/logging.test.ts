@@ -107,6 +107,34 @@ describe('logging', () => {
       expect(result.headers['content-type']).toBe('json')
     })
 
+    // DELETE /accounts/{accountId}/push-subscriptions carries the push endpoint as a query
+    // parameter. It is a sendable capability, not an opaque id, so it must not reach a log group.
+    const unsubscribeEvent = {
+      headers: {},
+      queryStringParameters: { endpoint: 'https://push.example.com/subscription/first', trace: 'abc' },
+      rawQueryString: 'endpoint=https%3A%2F%2Fpush.example.com%2Fsubscription%2Ffirst&trace=abc',
+      requestContext: {},
+    } as unknown as APIGatewayProxyEventV2
+
+    it('should drop the push endpoint query parameter while other query parameters remain', () => {
+      const result = redactEvent(unsubscribeEvent) as { queryStringParameters: Record<string, string> }
+
+      expect(result.queryStringParameters.endpoint).toBeUndefined()
+      expect(result.queryStringParameters.trace).toBe('abc')
+    })
+
+    it('should drop rawQueryString, which repeats every query parameter unstructured', () => {
+      const result = redactEvent(unsubscribeEvent) as { rawQueryString: unknown }
+
+      expect(result.rawQueryString).toBeUndefined()
+    })
+
+    it('should pass through events without query parameters without adding the field', () => {
+      const result = redactEvent(event) as { queryStringParameters: unknown }
+
+      expect(result.queryStringParameters).toBeUndefined()
+    })
+
     it('should keep only sub in jwt claims, dropping phone/name PII', () => {
       const result = redactEvent(event) as { requestContext: { authorizer: { jwt: { claims: unknown } } } }
 

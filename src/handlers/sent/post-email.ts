@@ -1,4 +1,4 @@
-import { emailDomain } from '../../config'
+import { assertRequiredEnv, emailDomain } from '../../config'
 import { getAccountById, setSentById } from '../../services/dynamodb'
 import { sendEmail } from '../../services/queue'
 import { copyS3Object, putS3Object } from '../../services/s3'
@@ -11,6 +11,15 @@ import {
 } from '../../utils/events'
 import { log, logError, redactEvent } from '../../utils/logging'
 import status from '../../utils/status'
+
+assertRequiredEnv(
+  'DYNAMODB_ACCOUNTS_TABLE_NAME',
+  'DYNAMODB_SENT_TABLE_NAME',
+  'EMAIL_BUCKET',
+  'EMAIL_DOMAIN',
+  'QUEUE_API_URL',
+  'SSM_QUEUE_API_KEY_PATH',
+)
 
 export const postEmailHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
   log('Received event', redactEvent(event))

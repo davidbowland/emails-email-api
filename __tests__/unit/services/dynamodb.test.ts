@@ -1,15 +1,18 @@
-import { account, accountId, email, emailId } from '../__mocks__'
+import { account, accountId, email, emailId, pushSubscription, pushSubscriptions } from '../__mocks__'
 import {
   deleteAccountById,
+  deletePushSubscriptionsById,
   deleteReceivedById,
   deleteSentById,
   getAccountById,
   getAccounts,
+  getPushSubscriptionsById,
   getReceived,
   getReceivedById,
   getSent,
   getSentById,
   setAccountById,
+  setPushSubscriptionsById,
   setReceivedById,
   setSentById,
 } from '@services/dynamodb'
@@ -75,6 +78,21 @@ describe('dynamodb', () => {
 
         await expect(getAccountById(accountId)).rejects.toThrow('Account not found')
       })
+
+      test('expect notificationPreview defaulted for a legacy account', async () => {
+        mockSend.mockResolvedValueOnce({
+          Item: { Data: { S: JSON.stringify({ forwardTargets: [], name: 'Legacy' }) } },
+        })
+
+        const result = await getAccountById(accountId)
+
+        expect(result).toEqual({
+          bounceSenders: [],
+          forwardTargets: [],
+          name: 'Legacy',
+          notificationPreview: 'sender-and-subject',
+        })
+      })
     })
 
     describe('getAccounts', () => {
@@ -88,7 +106,15 @@ describe('dynamodb', () => {
         const result = await getAccounts()
 
         expect(result).toEqual([
-          { data: { bounceSenders: [], forwardTargets: ['any@domain.com'], name: 'Any' }, id: 'account' },
+          {
+            data: {
+              bounceSenders: [],
+              forwardTargets: ['any@domain.com'],
+              name: 'Any',
+              notificationPreview: 'sender-and-subject',
+            },
+            id: 'account',
+          },
         ])
       })
 
@@ -119,6 +145,87 @@ describe('dynamodb', () => {
     })
   })
 
+  describe('push subscriptions', () => {
+    describe('getPushSubscriptionsById', () => {
+      beforeAll(() => {
+        mockSend.mockResolvedValue({ Item: { Data: { S: JSON.stringify(pushSubscriptions) } } })
+      })
+
+      test('expect accountId passed to get', async () => {
+        await getPushSubscriptionsById(accountId)
+
+        expect(mockSend).toHaveBeenCalledWith({
+          Key: {
+            Account: {
+              S: `${accountId}`,
+            },
+          },
+          TableName: 'push-subscriptions-table',
+        })
+      })
+
+      test('expect subscriptions parsed and returned', async () => {
+        const result = await getPushSubscriptionsById(accountId)
+
+        expect(result).toEqual(pushSubscriptions)
+      })
+
+      test('expect empty array when no item stored', async () => {
+        mockSend.mockResolvedValueOnce({ Item: undefined })
+
+        const result = await getPushSubscriptionsById(accountId)
+
+        expect(result).toEqual([])
+      })
+    })
+
+    describe('setPushSubscriptionsById', () => {
+      test('expect subscriptions passed to put', async () => {
+        await setPushSubscriptionsById(accountId, [pushSubscription])
+
+        expect(mockSend).toHaveBeenCalledWith({
+          Item: {
+            Account: {
+              S: `${accountId}`,
+            },
+            Data: {
+              S: JSON.stringify([pushSubscription]),
+            },
+          },
+          TableName: 'push-subscriptions-table',
+        })
+      })
+
+      test('expect item deleted when the array empties', async () => {
+        await setPushSubscriptionsById(accountId, [])
+
+        expect(mockSend).toHaveBeenCalledWith({
+          Key: {
+            Account: {
+              S: `${accountId}`,
+            },
+          },
+          TableName: 'push-subscriptions-table',
+        })
+      })
+    })
+
+    describe('deletePushSubscriptionsById', () => {
+      test('expect accountId passed to delete', async () => {
+        await deletePushSubscriptionsById(accountId)
+
+        expect(mockSend).toHaveBeenCalledWith({
+          Key: {
+            Account: {
+              S: `${accountId}`,
+            },
+          },
+          TableName: 'push-subscriptions-table',
+        })
+      })
+    })
+  })
+
   describe('received', () => {
     describe('deleteReceivedById', () => {
       test('expect accountId and emailId passed to delete', async () => {
@@ -143,10 +250,14 @@ describe('dynamodb', () => {
         mockSend.mockResolvedValue({ Item: { Data: { S: JSON.stringify(account) } } })
       })
 
-      it('should pass accountId and emailId to get', async () => {
+      // ConsistentRead matters here: emails-inbound-service writes the email and then, from a
+      // different Lambda, asks this API to notify. An eventually-consistent read of that item can
+      // miss it, and a missed notify is never retried.
+      it('should pass accountId and emailId to a consistent get', async () => {
         await getReceivedById(accountId, emailId)
 
         expect(mockSend).toHaveBeenCalledWith({
+          ConsistentRead: true,
           Key: {
             Account: {
               S: `${accountId}`,

@@ -1,10 +1,12 @@
-import { emailDomain } from '../../config'
+import { assertRequiredEnv, emailDomain } from '../../config'
 import { getReceivedById, setReceivedById } from '../../services/dynamodb'
 import { bounceEmail } from '../../services/queue'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2, Email } from '../../types'
 import { validateUsernameInEvent } from '../../utils/events'
 import { log, logError, redactEvent } from '../../utils/logging'
 import status from '../../utils/status'
+
+assertRequiredEnv('DYNAMODB_RECEIVED_TABLE_NAME', 'EMAIL_DOMAIN', 'QUEUE_API_URL', 'SSM_QUEUE_API_KEY_PATH')
 
 const determineBounceSender = (accountAddress: string, email: Email): string => {
   const recipients = email.to.concat(email.cc ?? []).concat(email.bcc ?? [])

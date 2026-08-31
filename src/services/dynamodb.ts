@@ -10,17 +10,28 @@ import {
   ScanOutput,
 } from '@aws-sdk/client-dynamodb'
 
-import { dynamodbAccountsTableName, dynamodbReceivedTableName, dynamodbSentTableName } from '../config'
-import { Account, AccountBatch, Email, EmailBatch } from '../types'
+import {
+  dynamodbAccountsTableName,
+  dynamodbPushSubscriptionsTableName,
+  dynamodbReceivedTableName,
+  dynamodbSentTableName,
+} from '../config'
+import { Account, AccountBatch, DEFAULT_NOTIFICATION_PREVIEW, Email, EmailBatch, PushSubscription } from '../types'
 import { xrayCapture } from '../utils/logging'
 
 const dynamodb = xrayCapture(new DynamoDBClient({ apiVersion: '2012-08-10' }))
 
 /* Accounts */
 
+// The single place the default is applied on read, so every consumer receives a concrete value.
+// This keeps DEFAULT_NOTIFICATION_PREVIEW while formatAccount (utils/events.ts) falls back to 'none'
+// on the write path. That is intentional, not a drift: absent on READ means "this account predates
+// the field and never chose", so the most informative tier is the right welcome, while absent on
+// WRITE means "this client cannot express the choice" and must not overwrite a deliberate 'none'.
 const normalizeLegacyAccount = (account: Partial<Account>): Account =>
   ({
     bounceSenders: [],
+    notificationPreview: DEFAULT_NOTIFICATION_PREVIEW,
     ...account,
   }) as Account
 
@@ -85,6 +96,56 @@ export const setAccountById = async (account: string, data: Account): Promise<Pu
   return dynamodb.send(command)
 }
 
+/* Push subscriptions */
+
+export const deletePushSubscriptionsById = async (account: string): Promise<DeleteItemOutput> => {
+  const command = new DeleteItemCommand({
+    Key: {
+      Account: {
+        S: `${account}`,
+      },
+    },
+    TableName: dynamodbPushSubscriptionsTableName,
+  })
+  return dynamodb.send(command)
+}
+
+export const getPushSubscriptionsById = async (account: string): Promise<PushSubscription[]> => {
+  const command = new GetItemCommand({
+    Key: {
+      Account: {
+        S: `${account}`,
+      },
+    },
+    TableName: dynamodbPushSubscriptionsTableName,
+  })
+  const response = await dynamodb.send(command)
+  return response.Item?.Data?.S ? JSON.parse(response.Item.Data.S) : []
+}
+
+// When the array empties -- after the last DELETE or the last prune -- the item is deleted rather
+// than stored as [], so the privacy policy's "until you turn notifications off" is literally true.
+export const setPushSubscriptionsById = async (
+  account: string,
+  subscriptions: PushSubscription[],
+): Promise<DeleteItemOutput | PutItemOutput> => {
+  if (subscriptions.length === 0) {
+    return deletePushSubscriptionsById(account)
+  }
+  const command = new PutItemCommand({
+    Item: {
+      Account: {
+        S: `${account}`,
+      },
+      Data: {
+        S: JSON.stringify(subscriptions),
+      },
+    },
+    TableName: dynamodbPushSubscriptionsTableName,
+  })
+  return dynamodb.send(command)
+}
+
 /* Received */
 
 export const deleteReceivedById = async (account: string, id: string): Promise<DeleteItemOutput> => {
@@ -102,8 +163,16 @@ export const deleteReceivedById = async (account: string, id: string): Promise<D
   return dynamodb.send(command)
 }
 
+// ConsistentRead because emails-inbound-service PUTs a received email through one Lambda and then
+// immediately asks this API to notify from another. An eventually-consistent read served by a stale
+// replica returns no item, post-notify treats that as 'Email not found' and answers 204, the caller
+// treats any 2xx as success, and nothing retries -- the mail arrives and the phone stays silent,
+// with no ERROR anywhere an operator would look. The cost is one extra RCU on a small single-item
+// read; correctness on the notify path is worth more than that to every other caller as well, since
+// patch-email and post-bounce read-modify-write the same item.
 export const getReceivedById = async (account: string, id: string): Promise<Email> => {
   const command = new GetItemCommand({
+    ConsistentRead: true,
     Key: {
       Account: {
         S: `${account}`,
