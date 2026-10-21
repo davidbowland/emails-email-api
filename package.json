@@ -26,6 +26,7 @@
     "update": "ncu --doctor --target minor --upgrade && npm audit fix --audit-level=none && npm run test && npm dedupe"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1121.0",
     "@aws-sdk/client-dynamodb": "^3.1121.0",
     "@aws-sdk/client-s3": "^3.1121.0",
     "@aws-sdk/client-ssm": "^3.1121.0",

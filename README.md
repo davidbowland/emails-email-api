@@ -80,6 +80,23 @@ npm run deploy
 
 Infrastructure specific to this API lives in this repo's `template.yaml`. Infrastructure shared across the `emails` project (Cognito, IAM, DNS) lives in the separate `emails-infrastructure` repo.
 
+### Spam rule suggestions
+
+`POST /v1/accounts/{accountId}/emails/received/{emailId}/spam-suggestions` (HTTP API, Cognito only — there is no `x-api-key` route, because the internal domain skips the ownership check) asks a model for stricter spam filter settings based on one received email. The UI calls it after a message is moved to Spam. It returns `{ suggestions: [{ id, kind, value, reason }] }` and never saves anything; accepted suggestions go through the normal validated account update.
+
+| Status | When                                                                     |
+| ------ | ------------------------------------------------------------------------ |
+| 200    | Suggestions, possibly an empty list                                      |
+| 403    | The caller does not own `accountId`                                      |
+| 404    | The email or account does not exist                                      |
+| 429    | The account has used its daily limit (`SPAM_SUGGESTION_DAILY_LIMIT`, 20) |
+| 503    | Bedrock is denied (kill switch) or throttling                            |
+
+- **Stricter only.** The only kinds are `addBlockPhrase`, `removeTrustedSender` and `raiseSensitivity`. The email is untrusted and may try to steer the model, so `src/utils/spam-suggestions.ts` re-validates everything the model returns: unknown kinds are dropped, every entry must pass the same rules as an account save, a block phrase must occur in the email, a removed trusted sender must already exist, sensitivity must go up, duplicates are dropped and at most 10 are returned.
+- **Bedrock.** Calls go through `src/services/bedrock.ts` (Converse, `maxTokens` 1024, no thinking) with the model in `BEDROCK_MODEL_ID` (default Haiku 4.5, `us.anthropic.claude-haiku-4-5-20251001-v1:0`). The role may invoke any foundation model or inference profile, so the model can be changed through the environment variable alone. Logs carry the account id, message id, model id, token usage and suggestion count — never prompt or response text.
+- **Kill switch.** The function's role attaches the fleet's `kill-switch-bedrock-${Environment}` managed policy. Flipping it makes every call fail with `AccessDeniedException`, which the endpoint answers with 503; the policy is the only spend cap on Bedrock.
+- **Quota table.** `SpamSuggestionUsageTable` (`emails-email-api-spam-suggestion-usage[-test]`) holds one item per account per UTC day (`Account`, `Day`). A conditional `UpdateItem` increments `Count` only while it is under the limit, so concurrent calls cannot overshoot, and the counter never lives in the account item, so saving the account cannot reset it. DynamoDB TTL on `Expires` removes each item two days later. The route is also throttled at a burst of 5 and 1 request per second.
+
 ## Secrets
 
 Application secrets live in SSM Parameter Store and are read at runtime by the Lambdas that need them. GitHub keeps only what is needed to authenticate a deploy.

@@ -31,6 +31,7 @@ Mappings:
       tablePushSubscriptions: emails-email-api-push-subscriptions
       tableReceived: emails-email-api-received
       tableSent: emails-email-api-sent
+      tableSpamSuggestionUsage: emails-email-api-spam-suggestion-usage
       userPool: us-east-1_Ye69GgTRe
       userPoolClient: 3cejj3ovkhdcc1g12pan5kef97
       vapidPrivateKeyPath: /emails-email-api/vapid-private-key
@@ -51,6 +52,7 @@ Mappings:
       tablePushSubscriptions: emails-email-api-push-subscriptions-test
       tableReceived: emails-email-api-received-test
       tableSent: emails-email-api-sent-test
+      tableSpamSuggestionUsage: emails-email-api-spam-suggestion-usage-test
       userPool: us-east-1_F7D2gaAHZ
       userPoolClient: 1mu219nb4hc1jp5bgnq1bcpnsb
       vapidPrivateKeyPath: /emails-email-api-test/vapid-private-key
@@ -1060,6 +1062,101 @@ Resources:
         - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
       FilterPattern: '[timestamp, uuid, level="ERROR", message]'
       LogGroupName: !Ref PostNotifyReceivedEmailLogGroup
+
+  PostSpamSuggestionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/received/post-spam-suggestions.postSpamSuggestionsHandler
+      Runtime: nodejs24.x
+      Architectures:
+        - x86_64
+      MemorySize: 1024
+      Description: emails-email-api suggest stricter spam rules for a received email
+      Policies:
+        # The fleet's Bedrock kill switch: flipping this managed policy to Deny makes every Converse
+        # call fail with AccessDeniedException, which the handler answers 503. It is the only spend
+        # cap on Bedrock, so this function must never call Bedrock through anything it does not cover.
+        - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/kill-switch-bedrock-${Environment}'
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBReadPolicy:
+            TableName: !Ref AccountTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref ReceivedTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SpamSuggestionUsageTable
+        - S3ReadPolicy:
+            BucketName: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+        - Version: 2012-10-17
+          Statement:
+            # Every foundation model and this account's inference profiles, not one model ARN, so the
+            # model can be swapped through BEDROCK_MODEL_ID alone. The foundation-model region is a
+            # wildcard because a cross-region inference profile routes to other regions. InvokeModel
+            # only (Converse maps to it; nothing streams), and no aws-marketplace:* -- subscribing to
+            # a model is a one-time human action.
+            - Action: ['bedrock:InvokeModel']
+              Effect: Allow
+              Resource:
+                - 'arn:aws:bedrock:*::foundation-model/*'
+                - !Sub 'arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*'
+      Environment:
+        Variables:
+          BEDROCK_MODEL_ID: us.anthropic.claude-haiku-4-5-20251001-v1:0
+          DYNAMODB_ACCOUNTS_TABLE_NAME: !Ref AccountTable
+          DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable
+          EMAIL_BUCKET: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+          SPAM_SUGGESTION_DAILY_LIMIT: '20'
+          SPAM_SUGGESTION_USAGE_TABLE_NAME: !Ref SpamSuggestionUsageTable
+      Events:
+        # Http only, never ApiKey: validateUsernameInEvent skips the ownership check on the internal
+        # domain, and nothing internal needs suggestions.
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}/emails/received/{emailId}/spam-suggestions
+            Method: post
+            # Each call is a paid model invocation; the per-account daily quota is the real bound and
+            # this keeps a burst from reaching it all at once.
+            RouteSettings:
+              ThrottlingBurstLimit: 5
+              ThrottlingRateLimit: 1
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      # Under the HttpApi's 30-second integration limit, so a slow model call ends here with a logged
+      # timeout rather than at the gateway.
+      Timeout: 29
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: node24
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/received/post-spam-suggestions.ts
+
+  PostSpamSuggestionsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PostSpamSuggestionsFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  PostSpamSuggestionsLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref PostSpamSuggestionsLogGroup
 
   ## Received attachments
 
@@ -2081,3 +2178,31 @@ Resources:
           Value: 'emails'
         - Key: 'environment'
           Value: !Ref Environment
+
+  # One item per account per UTC day (see incrementSpamSuggestionUsage in src/services/dynamodb.ts).
+  # The counter is disposable: TTL removes it two days later, and point-in-time recovery is left off.
+  SpamSuggestionUsageTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: Account
+          AttributeType: S
+        - AttributeName: Day
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: Account
+          KeyType: HASH
+        - AttributeName: Day
+          KeyType: RANGE
+      TableName: !FindInMap [EnvironmentMap, !Ref Environment, tableSpamSuggestionUsage]
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+      TimeToLiveSpecification:
+        AttributeName: Expires
+        Enabled: true
