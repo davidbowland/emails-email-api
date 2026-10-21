@@ -12,6 +12,7 @@ import {
   getSent,
   getSentById,
   incrementSpamSuggestionUsage,
+  refundSpamSuggestionUsage,
   setAccountById,
   setPushSubscriptionsById,
   setReceivedById,
@@ -321,6 +322,70 @@ describe('dynamodb', () => {
         const result = await incrementSpamSuggestionUsage(accountId, 20)
 
         expect(result).toBe(true)
+      })
+    })
+
+    describe('refundSpamSuggestionUsage', () => {
+      // 2026-10-21T13:45:00.000Z
+      const now = () => 1_792_590_300_000
+
+      beforeAll(() => {
+        mockSend.mockResolvedValue({})
+      })
+
+      test('expect a conditional decrement of the same account and UTC day', async () => {
+        await refundSpamSuggestionUsage(accountId, now)
+
+        expect(mockSend).toHaveBeenCalledWith({
+          ConditionExpression: '#count > :zero',
+          ExpressionAttributeNames: {
+            '#count': 'Count',
+          },
+          ExpressionAttributeValues: {
+            ':minusOne': { N: '-1' },
+            ':zero': { N: '0' },
+          },
+          Key: {
+            Account: { S: accountId },
+            Day: { S: '2026-10-21' },
+          },
+          TableName: 'spam-suggestion-usage-table',
+          UpdateExpression: 'ADD #count :minusOne',
+        })
+      })
+
+      test('expect the day to roll over at UTC midnight', async () => {
+        await refundSpamSuggestionUsage(accountId, () => 1_792_627_199_999)
+        await refundSpamSuggestionUsage(accountId, () => 1_792_627_200_000)
+
+        expect(mockSend).toHaveBeenNthCalledWith(
+          1,
+          expect.objectContaining({ Key: { Account: { S: accountId }, Day: { S: '2026-10-21' } } }),
+        )
+        expect(mockSend).toHaveBeenNthCalledWith(
+          2,
+          expect.objectContaining({ Key: { Account: { S: accountId }, Day: { S: '2026-10-22' } } }),
+        )
+      })
+
+      test('expect no error when there is nothing to refund', async () => {
+        mockSend.mockRejectedValueOnce(
+          Object.assign(new Error('The conditional request failed'), { name: 'ConditionalCheckFailedException' }),
+        )
+
+        await expect(refundSpamSuggestionUsage(accountId, now)).resolves.toBeUndefined()
+      })
+
+      test('expect other errors rethrown', async () => {
+        mockSend.mockRejectedValueOnce(new Error('ProvisionedThroughputExceededException'))
+
+        await expect(refundSpamSuggestionUsage(accountId, now)).rejects.toThrow(
+          'ProvisionedThroughputExceededException',
+        )
+      })
+
+      test('expect Date.now used by default', async () => {
+        await expect(refundSpamSuggestionUsage(accountId)).resolves.toBeUndefined()
       })
     })
   })

@@ -248,6 +248,11 @@ const DAY_MS = 86_400_000
 // the DynamoDB TTL attribute: two days past the start of the counted day, by which time the item can
 // no longer be counted against.
 // Returns false when the account has already used its daily limit; any other failure is rethrown.
+const getUsageDay = (now: () => number): { day: string; dayStart: number } => {
+  const dayStart = Math.floor(now() / DAY_MS) * DAY_MS
+  return { day: new Date(dayStart).toISOString().slice(0, 10), dayStart }
+}
+
 export const incrementSpamSuggestionUsage = async (
   accountId: string,
   limit: number,
@@ -258,8 +263,7 @@ export const incrementSpamSuggestionUsage = async (
   if (!(limit > 0)) {
     return false
   }
-  const dayStart = Math.floor(now() / DAY_MS) * DAY_MS
-  const day = new Date(dayStart).toISOString().slice(0, 10)
+  const { day, dayStart } = getUsageDay(now)
   const expires = Math.floor((dayStart + 2 * DAY_MS) / 1000)
   const command = new UpdateItemCommand({
     ConditionExpression: 'attribute_not_exists(#count) OR #count < :limit',
@@ -297,6 +301,45 @@ export const incrementSpamSuggestionUsage = async (
       return false
     }
     throw error
+  }
+}
+
+// Gives back one use when a counted request failed on our side, so an outage does not spend the
+// account's daily allowance. Pass the same clock the increment used, so a request that straddles UTC
+// midnight refunds the day it was counted against. The condition keeps the count from going below zero;
+// a refund with nothing to refund (the item expired or was never written) is a no-op, not an error.
+export const refundSpamSuggestionUsage = async (accountId: string, now: () => number = Date.now): Promise<void> => {
+  const { day } = getUsageDay(now)
+  const command = new UpdateItemCommand({
+    ConditionExpression: '#count > :zero',
+    ExpressionAttributeNames: {
+      '#count': 'Count',
+    },
+    ExpressionAttributeValues: {
+      ':minusOne': {
+        N: '-1',
+      },
+      ':zero': {
+        N: '0',
+      },
+    },
+    Key: {
+      Account: {
+        S: `${accountId}`,
+      },
+      Day: {
+        S: day,
+      },
+    },
+    TableName: spamSuggestionUsageTableName,
+    UpdateExpression: 'ADD #count :minusOne',
+  })
+  try {
+    await dynamodb.send(command)
+  } catch (error: unknown) {
+    if ((error as Error)?.name !== 'ConditionalCheckFailedException') {
+      throw error
+    }
   }
 }
 

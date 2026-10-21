@@ -1,4 +1,4 @@
-import { ConverseCommand } from '@aws-sdk/client-bedrock-runtime'
+import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime'
 
 import { converse } from '@services/bedrock'
 import { log, logError } from '@utils/logging'
@@ -17,6 +17,9 @@ jest.mock('@utils/logging', () => ({
 }))
 
 describe('bedrock', () => {
+  // Read before any test runs: the client is built once at import, and clearMocks empties the calls.
+  const clientConfig = jest.mocked(BedrockRuntimeClient).mock.calls[0]?.[0]
+
   const command = new ConverseCommand({
     inferenceConfig: { maxTokens: 1024 },
     messages: [{ content: [{ text: 'Sensitive email body' }], role: 'user' }],
@@ -31,6 +34,12 @@ describe('bedrock', () => {
 
   beforeAll(() => {
     mockSend.mockResolvedValue(response)
+  })
+
+  describe('client', () => {
+    test('expect a 20 second request timeout and at most two attempts', () => {
+      expect(clientConfig).toEqual({ maxAttempts: 2, requestHandler: { requestTimeout: 20_000 } })
+    })
   })
 
   describe('converse', () => {

@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto'
 import { bedrockModelId } from '../config'
 import { Account, SpamFilter, SpamSensitivity, SpamSuggestion, SpamSuggestionKind } from '../types'
 import { formatSpamFilter } from './events'
+import { createPhraseMatcher, toWords } from './phrase-matching'
 
 interface SuggestionEmail {
   from: string
@@ -55,6 +56,8 @@ const SYSTEM_PROMPT = [
   `Reply only by calling the ${SPAM_SUGGESTION_TOOL_NAME} tool.`,
 ].join('\n')
 
+// Not `strict`: strict tool use rejects schema keywords like maxItems, and validateSuggestions below is the
+// authoritative check on everything the model returns anyway.
 const SUGGESTION_TOOL_SCHEMA = {
   additionalProperties: false,
   properties: {
@@ -144,17 +147,24 @@ export const extractSuggestionToolInput = (output: ConverseCommandOutput): unkno
 
 /* Validation */
 
-// Mirrors the phrase matcher's normalization closely enough to compare phrases for duplicates and to
-// check a phrase actually occurs in the message: NFKC, lowercase, zero-width characters removed,
-// apostrophes deleted, every other non-letter, non-digit character treated as a word break.
-const normalizeWords = (value: string): string =>
-  value
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/[\u200b-\u200d\u2060\ufeff]/g, '')
-    .replace(/['\u2018\u2019\u02bc]/g, '')
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim()
+// Control (\p{Cc}) and format (\p{Cf}) characters are stripped from model output before it is trimmed or
+// validated, so an invisible character can neither slip a value past validation nor hide inside a reason.
+// Format characters are deleted outright (a zero-width space inside a word stays inside it); a control
+// character, like whitespace, becomes one word break, so a newline between two words never joins them.
+const FORMAT_CHARACTERS = /\p{Cf}/gu
+const WHITESPACE_AND_CONTROL_CHARACTERS = /[\s\p{Cc}]+/gu
+
+const cleanModelText = (value: string): string =>
+  value.replace(FORMAT_CHARACTERS, '').replace(WHITESPACE_AND_CONTROL_CHARACTERS, ' ').trim()
+
+// The same matcher the inbound filter runs (AC-048), so a phrase is a duplicate exactly when the filter
+// would treat it as the same phrase, and is in the message exactly when the filter would match it.
+const toPhraseKey = (value: string): string => toWords(value).join(' ')
+
+interface EmailMatchers {
+  body: (phraseWords: string[]) => boolean
+  subject: (phraseWords: string[]) => boolean
+}
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -170,8 +180,8 @@ const toCandidate = (raw: unknown): Candidate | undefined => {
     return undefined
   }
   const kind = SUGGESTION_KINDS.find((allowed) => allowed === raw.kind)
-  const reason = raw.reason.replace(/\s+/g, ' ').trim().slice(0, MAX_REASON_LENGTH)
-  const value = raw.value.replace(/\s+/g, ' ').trim()
+  const reason = cleanModelText(raw.reason).slice(0, MAX_REASON_LENGTH)
+  const value = cleanModelText(raw.value)
   return kind && reason && value ? { kind, reason, value } : undefined
 }
 
@@ -204,13 +214,19 @@ const applyCandidate = (spamFilter: SpamFilter, candidate: Candidate): SpamFilte
 // duplicates of the current state and of earlier suggestions are both dropped. Returns the candidate
 // with its value canonicalized (the stored trusted-sender spelling, a lowercase sensitivity), or
 // undefined to drop it.
-const resolveCandidate = (spamFilter: SpamFilter, candidate: Candidate, emailWords: string): Candidate | undefined => {
+const resolveCandidate = (
+  spamFilter: SpamFilter,
+  candidate: Candidate,
+  emailMatchers: EmailMatchers,
+): Candidate | undefined => {
   if (candidate.kind === 'addBlockPhrase') {
-    const phrase = normalizeWords(candidate.value)
-    const isDuplicate = spamFilter.blockPhrases.some((existing) => normalizeWords(existing) === phrase)
+    const phraseWords = toWords(candidate.value)
+    const phraseKey = phraseWords.join(' ')
+    const isDuplicate = spamFilter.blockPhrases.some((existing) => toPhraseKey(existing) === phraseKey)
     // A phrase that is not in this message would not have caught it, so it is not a suggestion
-    // grounded in this message; it is dropped rather than shown.
-    const isInEmail = phrase !== '' && ` ${emailWords} `.includes(` ${phrase} `)
+    // grounded in this message; it is dropped rather than shown. Subject and body are matched
+    // separately, as the filter does, so a phrase spanning the two does not count.
+    const isInEmail = emailMatchers.subject(phraseWords) || emailMatchers.body(phraseWords)
     return !isDuplicate && isInEmail ? candidate : undefined
   }
   if (candidate.kind === 'removeTrustedSender') {
@@ -232,9 +248,10 @@ export const validateSuggestions = (
   if (!Array.isArray(rawSuggestions)) {
     return []
   }
-  const emailWords = normalizeWords(
-    `${email.subject.slice(0, MAX_HEADER_LENGTH)}\n${email.text.slice(0, MAX_BODY_LENGTH)}`,
-  )
+  const emailMatchers: EmailMatchers = {
+    body: createPhraseMatcher(toWords(email.text.slice(0, MAX_BODY_LENGTH))),
+    subject: createPhraseMatcher(toWords(email.subject.slice(0, MAX_HEADER_LENGTH))),
+  }
 
   const accepted = rawSuggestions.map(toCandidate).reduce(
     (result: { candidates: Candidate[]; spamFilter: SpamFilter }, candidate) => {
@@ -245,7 +262,7 @@ export const validateSuggestions = (
       if (candidate === undefined || isSecondSensitivity || result.candidates.length >= MAX_SUGGESTIONS) {
         return result
       }
-      const resolved = resolveCandidate(result.spamFilter, candidate, emailWords)
+      const resolved = resolveCandidate(result.spamFilter, candidate, emailMatchers)
       const spamFilter = resolved && applyCandidate(result.spamFilter, resolved)
       return spamFilter && isSavable(spamFilter) ? { candidates: [...result.candidates, resolved], spamFilter } : result
     },

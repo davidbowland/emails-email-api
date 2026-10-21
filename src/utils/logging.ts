@@ -7,6 +7,8 @@ export const log = (...args: unknown[]): void => console.log(...args)
 
 export const logError = (...args: unknown[]): void => console.error(...args)
 
+export const logWarn = (...args: unknown[]): void => console.warn(...args)
+
 export const xrayCapture = <T>(x: T): T =>
   process.env.AWS_SAM_LOCAL === 'true' ? x : (AWSXRay.captureAWSv3Client(x as any) as T)
 

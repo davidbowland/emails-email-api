@@ -2,7 +2,15 @@ import { BedrockRuntimeClient, ConverseCommand, ConverseCommandOutput } from '@a
 
 import { log, logError, xrayCapture } from '../utils/logging'
 
-const bedrock = xrayCapture(new BedrockRuntimeClient({}))
+// The UI waits on this call, so a slow model fails fast instead of holding the Lambda to its own timeout:
+// each attempt is cut off after 20 seconds (the SDK then rejects with a TimeoutError, answered 503), and a
+// failed attempt is retried once at most.
+const REQUEST_TIMEOUT_MS = 20_000
+const MAX_ATTEMPTS = 2
+
+const bedrock = xrayCapture(
+  new BedrockRuntimeClient({ maxAttempts: MAX_ATTEMPTS, requestHandler: { requestTimeout: REQUEST_TIMEOUT_MS } }),
+)
 
 // Logs the model id and token counts only -- never the prompt, the tool input or any text the model
 // returned, because every one of those carries email content (AC-027).

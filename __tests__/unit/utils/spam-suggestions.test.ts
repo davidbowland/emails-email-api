@@ -247,6 +247,47 @@ describe('spam-suggestions', () => {
       ])
     })
 
+    test('expect a phrase spanning the subject and the body dropped', () => {
+      // The subject ends "free cruise!" and the body starts "Claim", so this only exists across the join.
+      const input = { suggestions: [{ kind: 'addBlockPhrase', reason: 'Spans parts', value: 'free cruise claim' }] }
+
+      expect(validateSuggestions(input, strictAccount, email, ids())).toEqual([])
+    })
+
+    test('expect phrases matched with the shared rule: format characters, combining marks, whole words', () => {
+      const shared = { ...email, subject: 'Visit İstanbul', text: 'Message me on What\u00ADsApp. Be happy.' }
+      const input = {
+        suggestions: [
+          { kind: 'addBlockPhrase', reason: 'Soft hyphen', value: 'whatsapp' },
+          { kind: 'addBlockPhrase', reason: 'Dotted capital I', value: 'İstanbul' },
+          { kind: 'addBlockPhrase', reason: 'Partial word', value: 'app' },
+        ],
+      }
+
+      expect(validateSuggestions(input, strictAccount, shared, ids()).map(({ value }) => value)).toEqual([
+        'whatsapp',
+        'İstanbul',
+      ])
+    })
+
+    test('expect control and format characters stripped from value and reason before validating', () => {
+      const input = {
+        suggestions: [
+          {
+            kind: 'addBlockPhrase',
+            reason: '\u200B\u0007Prize\u202E offer\u0000',
+            value: '\uFEFFfree\u0001cruise\u200B',
+          },
+          { kind: 'addBlockPhrase', reason: '\u200B\u200D', value: 'you have won' },
+          { kind: 'addBlockPhrase', reason: 'Only invisible', value: '\u200B\u0000\u2060' },
+        ],
+      }
+
+      expect(validateSuggestions(input, strictAccount, email, ids())).toEqual([
+        { id: 'id-1', kind: 'addBlockPhrase', reason: 'Prize offer', value: 'free cruise' },
+      ])
+    })
+
     test('expect duplicates of the current settings and of each other dropped', () => {
       const input = {
         suggestions: [

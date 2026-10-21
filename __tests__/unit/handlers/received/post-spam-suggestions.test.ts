@@ -9,7 +9,7 @@ import * as dynamodb from '@services/dynamodb'
 import * as s3 from '@services/s3'
 import { Account, APIGatewayProxyEventV2, ParsedMail } from '@types'
 import * as events from '@utils/events'
-import { log, logError } from '@utils/logging'
+import { log, logError, logWarn } from '@utils/logging'
 import status from '@utils/status'
 
 jest.mock('mailparser')
@@ -67,6 +67,7 @@ describe('post-spam-suggestions', () => {
     jest.mocked(dynamodb).getAccountById.mockResolvedValue(trustingAccount)
     jest.mocked(dynamodb).getReceivedById.mockResolvedValue(email)
     jest.mocked(dynamodb).incrementSpamSuggestionUsage.mockResolvedValue(true)
+    jest.mocked(dynamodb).refundSpamSuggestionUsage.mockResolvedValue(undefined)
     jest.mocked(events).validateUsernameInEvent.mockReturnValue(true)
     jest.mocked(mailparser).simpleParser.mockResolvedValue(injectedMail)
     jest.mocked(s3).getS3Object.mockResolvedValue({ body: Buffer.from('raw email'), metadata: {} })
@@ -98,13 +99,42 @@ describe('post-spam-suggestions', () => {
       expect(dynamodb.incrementSpamSuggestionUsage).not.toHaveBeenCalled()
     })
 
-    test('expect TOO_MANY_REQUESTS when the daily limit is used up', async () => {
+    test.each(['ProvisionedThroughputExceededException', 'AccessDeniedException'])(
+      'expect INTERNAL_SERVER_ERROR, logged by name only, when the lookup fails with %s',
+      async (name) => {
+        jest.mocked(dynamodb).getReceivedById.mockRejectedValueOnce(Object.assign(new Error('Rate exceeded'), { name }))
+        const result = await postSpamSuggestionsHandler(event)
+
+        expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
+        expect(logError).toHaveBeenCalledWith('Spam suggestions failed', { accountId, error: name, messageId: emailId })
+        expect(dynamodb.incrementSpamSuggestionUsage).not.toHaveBeenCalled()
+        expect(dynamodb.refundSpamSuggestionUsage).not.toHaveBeenCalled()
+      },
+    )
+
+    test('expect INTERNAL_SERVER_ERROR when the account lookup fails for another reason', async () => {
+      jest.mocked(dynamodb).getAccountById.mockRejectedValueOnce(new SyntaxError('Unexpected token'))
+      const result = await postSpamSuggestionsHandler(event)
+
+      expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
+      expect(dynamodb.incrementSpamSuggestionUsage).not.toHaveBeenCalled()
+    })
+
+    test('expect TOO_MANY_REQUESTS with a DAILY_LIMIT code when the daily limit is used up', async () => {
       jest.mocked(dynamodb).incrementSpamSuggestionUsage.mockResolvedValueOnce(false)
       const result = await postSpamSuggestionsHandler(event)
 
-      expect(dynamodb.incrementSpamSuggestionUsage).toHaveBeenCalledWith(accountId, spamSuggestionDailyLimit)
-      expect(result).toEqual(status.TOO_MANY_REQUESTS)
+      expect(dynamodb.incrementSpamSuggestionUsage).toHaveBeenCalledWith(
+        accountId,
+        spamSuggestionDailyLimit,
+        expect.any(Function),
+      )
+      expect(result).toEqual({
+        body: JSON.stringify({ code: 'DAILY_LIMIT', message: 'Daily suggestion limit reached' }),
+        statusCode: 429,
+      })
       expect(bedrock.converse).not.toHaveBeenCalled()
+      expect(dynamodb.refundSpamSuggestionUsage).not.toHaveBeenCalled()
     })
 
     test('expect INTERNAL_SERVER_ERROR when the quota check fails', async () => {
@@ -113,6 +143,7 @@ describe('post-spam-suggestions', () => {
 
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
       expect(bedrock.converse).not.toHaveBeenCalled()
+      expect(dynamodb.refundSpamSuggestionUsage).not.toHaveBeenCalled()
     })
 
     test('expect INTERNAL_SERVER_ERROR when the email contents cannot be read', async () => {
@@ -135,17 +166,90 @@ describe('post-spam-suggestions', () => {
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
     })
 
-    test.each(['AccessDeniedException', 'ThrottlingException'])(
-      'expect SERVICE_UNAVAILABLE when Bedrock rejects with %s',
-      async (name) => {
-        jest.mocked(bedrock).converse.mockRejectedValueOnce(Object.assign(new Error('denied'), { name }))
-        const result = await postSpamSuggestionsHandler(event)
+    test.each([
+      'ModelNotReadyException',
+      'ModelTimeoutException',
+      'ServiceUnavailableException',
+      'ThrottlingException',
+      'TimeoutError',
+    ])('expect SERVICE_UNAVAILABLE, logged at info, when Bedrock rejects with %s', async (name) => {
+      jest.mocked(bedrock).converse.mockRejectedValueOnce(Object.assign(new Error('unavailable'), { name }))
+      const result = await postSpamSuggestionsHandler(event)
 
-        expect(result).toEqual(status.SERVICE_UNAVAILABLE)
-        expect(log).toHaveBeenCalledWith('Bedrock unavailable', { accountId, error: name, messageId: emailId })
-        expect(logError).not.toHaveBeenCalled()
-      },
-    )
+      expect(result).toEqual(status.SERVICE_UNAVAILABLE)
+      expect(log).toHaveBeenCalledWith('Bedrock unavailable', { accountId, error: name, messageId: emailId })
+      expect(logWarn).not.toHaveBeenCalled()
+      expect(logError).not.toHaveBeenCalled()
+    })
+
+    test('expect SERVICE_UNAVAILABLE, logged as a warning by name only, when the kill switch denies access', async () => {
+      jest
+        .mocked(bedrock)
+        .converse.mockRejectedValueOnce(Object.assign(new Error('denied'), { name: 'AccessDeniedException' }))
+      const result = await postSpamSuggestionsHandler(event)
+
+      expect(result).toEqual(status.SERVICE_UNAVAILABLE)
+      expect(logWarn).toHaveBeenCalledWith('Bedrock unavailable', {
+        accountId,
+        error: 'AccessDeniedException',
+        messageId: emailId,
+      })
+      expect(logError).not.toHaveBeenCalled()
+    })
+
+    test('expect the use refunded, on the clock it was counted with, when Bedrock is unavailable', async () => {
+      jest
+        .mocked(bedrock)
+        .converse.mockRejectedValueOnce(Object.assign(new Error('unavailable'), { name: 'ThrottlingException' }))
+      await postSpamSuggestionsHandler(event)
+
+      const clock = jest.mocked(dynamodb).incrementSpamSuggestionUsage.mock.calls[0][2]
+      expect(dynamodb.refundSpamSuggestionUsage).toHaveBeenCalledWith(accountId, clock)
+    })
+
+    test('expect the use refunded when the email contents cannot be read', async () => {
+      jest.mocked(s3).getS3Object.mockRejectedValueOnce(Object.assign(new Error('gone'), { name: 'NoSuchKey' }))
+      await postSpamSuggestionsHandler(event)
+
+      expect(dynamodb.refundSpamSuggestionUsage).toHaveBeenCalledWith(accountId, expect.any(Function))
+    })
+
+    test('expect the use refunded when Bedrock fails unexpectedly', async () => {
+      jest
+        .mocked(bedrock)
+        .converse.mockRejectedValueOnce(Object.assign(new Error('bad'), { name: 'ValidationException' }))
+      const result = await postSpamSuggestionsHandler(event)
+
+      expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
+      expect(dynamodb.refundSpamSuggestionUsage).toHaveBeenCalledWith(accountId, expect.any(Function))
+    })
+
+    test('expect the original response, and a name-only warning, when the refund itself fails', async () => {
+      jest
+        .mocked(bedrock)
+        .converse.mockRejectedValueOnce(Object.assign(new Error('unavailable'), { name: 'ThrottlingException' }))
+      jest
+        .mocked(dynamodb)
+        .refundSpamSuggestionUsage.mockRejectedValueOnce(
+          Object.assign(new Error('throttled'), { name: 'ProvisionedThroughputExceededException' }),
+        )
+      const result = await postSpamSuggestionsHandler(event)
+
+      expect(result).toEqual(status.SERVICE_UNAVAILABLE)
+      expect(logWarn).toHaveBeenCalledWith('Unable to refund spam suggestion usage', {
+        accountId,
+        error: 'ProvisionedThroughputExceededException',
+        messageId: emailId,
+      })
+    })
+
+    test('expect the use clock fixed to the request time', async () => {
+      await postSpamSuggestionsHandler(event)
+
+      const clock = jest.mocked(dynamodb).incrementSpamSuggestionUsage.mock.calls[0][2] as () => number
+      expect(clock()).toEqual(clock())
+      expect(typeof clock()).toBe('number')
+    })
 
     test('expect INTERNAL_SERVER_ERROR, logged by error name only, on any other Bedrock error', async () => {
       jest
@@ -181,6 +285,7 @@ describe('post-spam-suggestions', () => {
       const result = await postSpamSuggestionsHandler(event)
 
       expect(result).toEqual(expect.objectContaining(status.OK))
+      expect(dynamodb.refundSpamSuggestionUsage).not.toHaveBeenCalled()
       expect(JSON.parse((result as { body: string }).body)).toEqual({
         suggestions: [
           {
