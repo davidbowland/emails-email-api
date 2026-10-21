@@ -8,13 +8,16 @@ import {
   QueryCommand,
   ScanCommand,
   ScanOutput,
+  UpdateItemCommand,
 } from '@aws-sdk/client-dynamodb'
 
 import {
+  DEFAULT_SPAM_FILTER,
   dynamodbAccountsTableName,
   dynamodbPushSubscriptionsTableName,
   dynamodbReceivedTableName,
   dynamodbSentTableName,
+  spamSuggestionUsageTableName,
 } from '../config'
 import { Account, AccountBatch, DEFAULT_NOTIFICATION_PREVIEW, Email, EmailBatch, PushSubscription } from '../types'
 import { xrayCapture } from '../utils/logging'
@@ -28,10 +31,12 @@ const dynamodb = xrayCapture(new DynamoDBClient({ apiVersion: '2012-08-10' }))
 // on the write path. That is intentional, not a drift: absent on READ means "this account predates
 // the field and never chose", so the most informative tier is the right welcome, while absent on
 // WRITE means "this client cannot express the choice" and must not overwrite a deliberate 'none'.
+// spamFilter is defaulted the same way, so accounts stored before the spam filter need no migration.
 const normalizeLegacyAccount = (account: Partial<Account>): Account =>
   ({
     bounceSenders: [],
     notificationPreview: DEFAULT_NOTIFICATION_PREVIEW,
+    spamFilter: DEFAULT_SPAM_FILTER,
     ...account,
   }) as Account
 
@@ -231,6 +236,63 @@ export const setReceivedById = async (account: string, id: string, data: Email):
     TableName: dynamodbReceivedTableName,
   })
   return dynamodb.send(command)
+}
+
+/* Spam suggestion usage */
+
+const DAY_MS = 86_400_000
+
+// One item per account per UTC day, so the counter never shares an item with the account's Data:
+// a PUT of the account (a full PutItem) cannot reset it. The increment and the limit check are a
+// single conditional UpdateItem, so concurrent requests cannot both slip under the limit. Expires is
+// the DynamoDB TTL attribute: two days past the start of the counted day, by which time the item can
+// no longer be counted against.
+// Returns false when the account has already used its daily limit; any other failure is rethrown.
+export const incrementSpamSuggestionUsage = async (
+  accountId: string,
+  limit: number,
+  now: () => number = Date.now,
+): Promise<boolean> => {
+  const dayStart = Math.floor(now() / DAY_MS) * DAY_MS
+  const day = new Date(dayStart).toISOString().slice(0, 10)
+  const expires = Math.floor((dayStart + 2 * DAY_MS) / 1000)
+  const command = new UpdateItemCommand({
+    ConditionExpression: 'attribute_not_exists(#count) OR #count < :limit',
+    ExpressionAttributeNames: {
+      '#count': 'Count',
+      '#expires': 'Expires',
+    },
+    ExpressionAttributeValues: {
+      ':expires': {
+        N: `${expires}`,
+      },
+      ':limit': {
+        N: `${limit}`,
+      },
+      ':one': {
+        N: '1',
+      },
+    },
+    Key: {
+      Account: {
+        S: `${accountId}`,
+      },
+      Day: {
+        S: day,
+      },
+    },
+    TableName: spamSuggestionUsageTableName,
+    UpdateExpression: 'ADD #count :one SET #expires = :expires',
+  })
+  try {
+    await dynamodb.send(command)
+    return true
+  } catch (error: unknown) {
+    if ((error as Error)?.name === 'ConditionalCheckFailedException') {
+      return false
+    }
+    throw error
+  }
 }
 
 /* Sent */

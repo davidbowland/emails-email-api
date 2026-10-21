@@ -35,6 +35,27 @@ describe('put-account', () => {
       expect(result).toEqual(expect.objectContaining(status.BAD_REQUEST))
     })
 
+    test('expect BAD_REQUEST and nothing stored when spamFilter is invalid', async () => {
+      jest.mocked(events).extractAccountFromEvent.mockImplementationOnce(() => {
+        throw new Error('spamFilter.trustedSenders must have 100 entries or fewer')
+      })
+      const result = await putAccountHandler(event)
+
+      expect(result).toEqual({
+        ...status.BAD_REQUEST,
+        body: JSON.stringify({ message: 'spamFilter.trustedSenders must have 100 entries or fewer' }),
+      })
+      expect(dynamodb.setAccountById).not.toHaveBeenCalled()
+    })
+
+    test('expect the validated spamFilter stored', async () => {
+      const spamFilter = { blockPhrases: ['act now'], sensitivity: 'high' as const, trustedSenders: ['@domain.com'] }
+      jest.mocked(events).extractAccountFromEvent.mockReturnValueOnce({ ...account, spamFilter })
+      await putAccountHandler(event)
+
+      expect(dynamodb.setAccountById).toHaveBeenCalledWith(accountId, { ...account, spamFilter })
+    })
+
     test('expect INTERNAL_SERVER_ERROR on setAccountById reject', async () => {
       jest.mocked(dynamodb).setAccountById.mockRejectedValueOnce(undefined)
       const result = await putAccountHandler(event)

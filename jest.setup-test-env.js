@@ -2,6 +2,10 @@
 
 process.env.QUEUE_API_URL = 'https://queue.api'
 
+// Bedrock
+
+process.env.BEDROCK_MODEL_ID = 'us.anthropic.claude-haiku-test'
+
 // DynamoDB
 
 process.env.DYNAMODB_ACCOUNTS_TABLE_NAME = 'accounts-table'
@@ -21,6 +25,11 @@ process.env.VAPID_SUBJECT = 'mailto:do-not-reply@domain.com'
 
 process.env.EMAIL_BUCKET = 'emails-service-storage'
 process.env.MAX_UPLOAD_SIZE = '10000000'
+
+// Spam
+
+process.env.SPAM_SUGGESTION_DAILY_LIMIT = '20'
+process.env.SPAM_SUGGESTION_USAGE_TABLE_NAME = 'spam-suggestion-usage-table'
 
 // SSM
 

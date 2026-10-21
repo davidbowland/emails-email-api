@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken'
 
+import { DEFAULT_SPAM_FILTER } from '../config'
 import {
   Account,
   APIGatewayProxyEventV2,
@@ -8,17 +9,88 @@ import {
   EmailAddress,
   EmailAttachment,
   EmailContents,
+  EmailFolder,
   EmailHeaders,
   EmailOutbound,
   NOTIFICATION_PREVIEWS,
   PatchOperation,
   PushSubscription,
+  SpamFilter,
+  SpamSensitivity,
   StringObject,
 } from '../types'
 
+/* Spam filter */
+
+const SPAM_SENSITIVITIES: SpamSensitivity[] = ['low', 'medium', 'high']
+const SPAM_FILTER_MAX_ENTRIES = 100
+const SPAM_FILTER_MAX_ENTRY_LENGTH = 100
+
+// A phrase with no letter or digit normalizes to zero words and would match nothing (or, in a
+// careless matcher, everything).
+const HAS_LETTER_OR_DIGIT = /[\p{L}\p{N}]/u
+// An address (local@domain.tld), an @domain or a bare domain; each domain needs at least one dot so
+// a bare TLD such as "com" cannot trust half the internet. No whitespace and no wildcards.
+const TRUSTED_SENDER_PATTERN = /^(?:[^\s@*]+@|@)?[^\s@*.]+(?:\.[^\s@*.]+)+$/u
+
+// No message here quotes an entry: handlers echo these messages back and logs may carry them.
+const validateSpamFilterList = (
+  list: unknown,
+  name: string,
+  isValidEntry: (entry: string) => boolean,
+  entryRule: string,
+): string[] => {
+  if (!Array.isArray(list)) {
+    throw new Error(`spamFilter.${name} must be an array of strings`)
+  }
+  if (list.length > SPAM_FILTER_MAX_ENTRIES) {
+    throw new Error(`spamFilter.${name} must have ${SPAM_FILTER_MAX_ENTRIES} entries or fewer`)
+  }
+  if (!list.every((entry) => typeof entry === 'string')) {
+    throw new Error(`spamFilter.${name} must be an array of strings`)
+  }
+  if (!list.every((entry) => entry.length <= SPAM_FILTER_MAX_ENTRY_LENGTH)) {
+    throw new Error(`spamFilter.${name} entries must be ${SPAM_FILTER_MAX_ENTRY_LENGTH} characters or fewer`)
+  }
+  if (!list.every(isValidEntry)) {
+    throw new Error(`spamFilter.${name} entries must ${entryRule}`)
+  }
+  return [...list]
+}
+
+export const formatSpamFilter = (spamFilter: SpamFilter): SpamFilter => {
+  if (typeof spamFilter !== 'object' || spamFilter === null || Array.isArray(spamFilter)) {
+    throw new Error('spamFilter must be an object')
+  }
+  if (!SPAM_SENSITIVITIES.includes(spamFilter.sensitivity)) {
+    throw new Error(`spamFilter.sensitivity must be one of ${SPAM_SENSITIVITIES.join(', ')}`)
+  }
+
+  return {
+    blockPhrases: validateSpamFilterList(
+      spamFilter.blockPhrases,
+      'blockPhrases',
+      (phrase) => HAS_LETTER_OR_DIGIT.test(phrase),
+      'contain at least one letter or number',
+    ),
+    sensitivity: spamFilter.sensitivity,
+    trustedSenders: validateSpamFilterList(
+      spamFilter.trustedSenders,
+      'trustedSenders',
+      (sender) => TRUSTED_SENDER_PATTERN.test(sender),
+      'be an email address, an @domain or a domain',
+    ),
+  }
+}
+
 /* Account */
 
-export const formatAccount = (account: Account): Account => {
+// storedSpamFilter is what an account write keeps when the request carries no spamFilter at all, so
+// a client that predates the field cannot wipe the owner's rules. On PATCH the stored account is the
+// patch target, so its spamFilter is always present and is validated as part of the post-patch
+// account. On PUT, put-account.ts does not read the stored item, so the default applies there unless
+// the caller passes the stored value through extractAccountFromEvent.
+export const formatAccount = (account: Account, storedSpamFilter: SpamFilter = DEFAULT_SPAM_FILTER): Account => {
   if (!Array.isArray(account.bounceSenders)) {
     throw new Error('bounceSenders must be an array of email addresses or domains')
   }
@@ -49,6 +121,7 @@ export const formatAccount = (account: Account): Account => {
     notificationPreview: NOTIFICATION_PREVIEWS.includes(account.notificationPreview)
       ? account.notificationPreview
       : 'none',
+    spamFilter: formatSpamFilter(account.spamFilter === undefined ? storedSpamFilter : account.spamFilter),
   }
 }
 
@@ -146,8 +219,12 @@ export const convertOutboundToEmail = (outbound: EmailOutbound): Email => ({
   viewed: false,
 })
 
+const EMAIL_FOLDERS: EmailFolder[] = ['inbox', 'spam']
+
 export const formatEmail = (email: Email): Email => {
-  if (email.to && !Array.isArray(email.to)) {
+  if (email.folder !== undefined && !EMAIL_FOLDERS.includes(email.folder)) {
+    throw new Error(`folder must be one of ${EMAIL_FOLDERS.join(', ')}, when present`)
+  } else if (email.to && !Array.isArray(email.to)) {
     throw new Error('to must be an array of email addresses, when present')
   } else if (email.cc && !Array.isArray(email.cc)) {
     throw new Error('cc must be an array of email addresses, when present')
@@ -186,6 +263,7 @@ export const formatEmail = (email: Email): Email => {
     })),
     bcc: email.bcc,
     cc: email.cc,
+    folder: email.folder,
     from: email.from,
     subject: email.subject,
     timestamp: email.timestamp ?? new Date().getTime(),
@@ -275,8 +353,10 @@ const parseEventBody = (event: APIGatewayProxyEventV2): unknown =>
     event.isBase64Encoded && event.body ? Buffer.from(event.body, 'base64').toString('utf8') : (event.body as string),
   )
 
-export const extractAccountFromEvent = (event: APIGatewayProxyEventV2): Account =>
-  formatAccount(parseEventBody(event) as Account)
+export const extractAccountFromEvent = (
+  event: APIGatewayProxyEventV2,
+  storedSpamFilter: SpamFilter = DEFAULT_SPAM_FILTER,
+): Account => formatAccount(parseEventBody(event) as Account, storedSpamFilter)
 
 export const extractEmailFromEvent = (event: APIGatewayProxyEventV2): Email =>
   formatEmail(parseEventBody(event) as Email)

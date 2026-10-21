@@ -1,6 +1,8 @@
 import axios from 'axios'
 import axiosRetry from 'axios-retry'
 
+import { SpamFilter } from './types'
+
 // Axios
 
 axiosRetry(axios, { retries: 3 })
@@ -8,6 +10,10 @@ axiosRetry(axios, { retries: 3 })
 // API
 
 export const queueApiUrl = process.env.QUEUE_API_URL as string
+
+// Bedrock
+
+export const bedrockModelId = process.env.BEDROCK_MODEL_ID as string
 
 // DynamoDB
 
@@ -48,6 +54,19 @@ export const vapidSubject = process.env.VAPID_SUBJECT as string
 
 export const emailBucket = process.env.EMAIL_BUCKET as string
 export const maxUploadSize = process.env.MAX_UPLOAD_SIZE as string
+
+// Spam
+
+// Applied on read to accounts stored before the spam filter existed, and on write when a request
+// carries no spamFilter and no stored value is available to keep.
+export const DEFAULT_SPAM_FILTER: SpamFilter = {
+  blockPhrases: [],
+  sensitivity: 'medium',
+  trustedSenders: [],
+}
+
+export const spamSuggestionDailyLimit = parseInt(process.env.SPAM_SUGGESTION_DAILY_LIMIT as string, 10)
+export const spamSuggestionUsageTableName = process.env.SPAM_SUGGESTION_USAGE_TABLE_NAME as string
 
 // SSM
 

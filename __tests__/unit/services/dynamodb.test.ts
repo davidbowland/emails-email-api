@@ -11,6 +11,7 @@ import {
   getReceivedById,
   getSent,
   getSentById,
+  incrementSpamSuggestionUsage,
   setAccountById,
   setPushSubscriptionsById,
   setReceivedById,
@@ -27,6 +28,7 @@ jest.mock('@aws-sdk/client-dynamodb', () => ({
   PutItemCommand: jest.fn().mockImplementation((x) => x),
   QueryCommand: jest.fn().mockImplementation((x) => x),
   ScanCommand: jest.fn().mockImplementation((x) => x),
+  UpdateItemCommand: jest.fn().mockImplementation((x) => x),
 }))
 jest.mock('@utils/logging', () => ({
   xrayCapture: jest.fn().mockImplementation((x) => x),
@@ -79,7 +81,7 @@ describe('dynamodb', () => {
         await expect(getAccountById(accountId)).rejects.toThrow('Account not found')
       })
 
-      test('expect notificationPreview defaulted for a legacy account', async () => {
+      test('expect notificationPreview and spamFilter defaulted for a legacy account', async () => {
         mockSend.mockResolvedValueOnce({
           Item: { Data: { S: JSON.stringify({ forwardTargets: [], name: 'Legacy' }) } },
         })
@@ -91,7 +93,19 @@ describe('dynamodb', () => {
           forwardTargets: [],
           name: 'Legacy',
           notificationPreview: 'sender-and-subject',
+          spamFilter: { blockPhrases: [], sensitivity: 'medium', trustedSenders: [] },
         })
+      })
+
+      test('expect a stored spamFilter kept', async () => {
+        const spamFilter = { blockPhrases: ['act now'], sensitivity: 'high', trustedSenders: ['@domain.com'] }
+        mockSend.mockResolvedValueOnce({
+          Item: { Data: { S: JSON.stringify({ ...account, spamFilter }) } },
+        })
+
+        const result = await getAccountById(accountId)
+
+        expect(result.spamFilter).toEqual(spamFilter)
       })
     })
 
@@ -112,6 +126,7 @@ describe('dynamodb', () => {
               forwardTargets: ['any@domain.com'],
               name: 'Any',
               notificationPreview: 'sender-and-subject',
+              spamFilter: { blockPhrases: [], sensitivity: 'medium', trustedSenders: [] },
             },
             id: 'account',
           },
@@ -222,6 +237,83 @@ describe('dynamodb', () => {
           },
           TableName: 'push-subscriptions-table',
         })
+      })
+    })
+  })
+
+  describe('spam suggestion usage', () => {
+    describe('incrementSpamSuggestionUsage', () => {
+      // 2026-10-21T13:45:00.000Z
+      const now = () => 1_792_590_300_000
+
+      beforeAll(() => {
+        mockSend.mockResolvedValue({})
+      })
+
+      test('expect a conditional increment keyed by account and UTC day', async () => {
+        await incrementSpamSuggestionUsage(accountId, 20, now)
+
+        expect(mockSend).toHaveBeenCalledWith({
+          ConditionExpression: 'attribute_not_exists(#count) OR #count < :limit',
+          ExpressionAttributeNames: {
+            '#count': 'Count',
+            '#expires': 'Expires',
+          },
+          ExpressionAttributeValues: {
+            ':expires': { N: '1792713600' },
+            ':limit': { N: '20' },
+            ':one': { N: '1' },
+          },
+          Key: {
+            Account: { S: accountId },
+            Day: { S: '2026-10-21' },
+          },
+          TableName: 'spam-suggestion-usage-table',
+          UpdateExpression: 'ADD #count :one SET #expires = :expires',
+        })
+      })
+
+      test('expect the day to roll over at UTC midnight', async () => {
+        await incrementSpamSuggestionUsage(accountId, 20, () => 1_792_627_199_999)
+        await incrementSpamSuggestionUsage(accountId, 20, () => 1_792_627_200_000)
+
+        expect(mockSend).toHaveBeenNthCalledWith(
+          1,
+          expect.objectContaining({ Key: { Account: { S: accountId }, Day: { S: '2026-10-21' } } }),
+        )
+        expect(mockSend).toHaveBeenNthCalledWith(
+          2,
+          expect.objectContaining({ Key: { Account: { S: accountId }, Day: { S: '2026-10-22' } } }),
+        )
+      })
+
+      test('expect true when under the limit', async () => {
+        const result = await incrementSpamSuggestionUsage(accountId, 20, now)
+
+        expect(result).toBe(true)
+      })
+
+      test('expect false when the limit is reached', async () => {
+        mockSend.mockRejectedValueOnce(
+          Object.assign(new Error('The conditional request failed'), { name: 'ConditionalCheckFailedException' }),
+        )
+        const result = await incrementSpamSuggestionUsage(accountId, 20, now)
+
+        expect(result).toBe(false)
+      })
+
+      test('expect other errors rethrown', async () => {
+        mockSend.mockRejectedValueOnce(new Error('ProvisionedThroughputExceededException'))
+
+        await expect(incrementSpamSuggestionUsage(accountId, 20, now)).rejects.toThrow(
+          'ProvisionedThroughputExceededException',
+        )
+      })
+
+      test('expect Date.now used by default', async () => {
+        const result = await incrementSpamSuggestionUsage(accountId, 20)
+
+        expect(result).toBe(true)
       })
     })
   })
