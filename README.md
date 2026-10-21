@@ -76,9 +76,16 @@ In extreme cases, lambdas can be built and deployed locally with:
 npm run deploy
 ```
 
+Deploy this API before `emails-inbound-service`, and `emails-inbound-service` before `emails-ui`: the inbound service stores each email's `folder` and reads the account's `spamFilter` through this API, and the UI calls the folder and spam filter routes below.
+
 ## Infrastructure
 
 Infrastructure specific to this API lives in this repo's `template.yaml`. Infrastructure shared across the `emails` project (Cognito, IAM, DNS) lives in the separate `emails-infrastructure` repo.
+
+### Spam folder and spam filter
+
+- **Folder.** A received email carries `folder` (`inbox` or `spam`); an email stored before the field existed has none and reads as `inbox`. `GET /v1/accounts/{accountId}/emails/received?folder=spam` lists one folder (default `inbox`; any other value is 400). `PATCH` on a received email may `replace` `/folder` with `inbox` or `spam` (other values are 400, other ops on `/folder` are 403), alongside the existing `/viewed`.
+- **Spam filter.** An account carries `spamFilter: { blockPhrases, sensitivity, trustedSenders }`, defaulting to `{ blockPhrases: [], sensitivity: 'medium', trustedSenders: [] }` for accounts stored before it existed. `PATCH` may change `/spamFilter` as a whole or by member, but may not remove it; `move` and `copy` are refused on every path. A `PUT` without `spamFilter` keeps the stored one. Every save is validated: `sensitivity` is `low`, `medium` or `high`; each list has at most 100 entries of at most 100 characters; a block phrase needs a letter or digit; a trusted sender is an address, an `@domain` or a domain, and every domain needs a dot.
 
 ### Spam rule suggestions
 
@@ -90,12 +97,13 @@ Infrastructure specific to this API lives in this repo's `template.yaml`. Infras
 | 403    | The caller does not own `accountId`                                      |
 | 404    | The email or account does not exist                                      |
 | 429    | The account has used its daily limit (`SPAM_SUGGESTION_DAILY_LIMIT`, 20) |
-| 503    | Bedrock is denied (kill switch) or throttling                            |
+| 500    | Any other failure                                                        |
+| 503    | Bedrock is denied (kill switch), throttling, unavailable or timed out    |
 
 - **Stricter only.** The only kinds are `addBlockPhrase`, `removeTrustedSender` and `raiseSensitivity`. The email is untrusted and may try to steer the model, so `src/utils/spam-suggestions.ts` re-validates everything the model returns: unknown kinds are dropped, every entry must pass the same rules as an account save, a block phrase must occur in the email, a removed trusted sender must already exist, sensitivity must go up, duplicates are dropped and at most 10 are returned.
-- **Bedrock.** Calls go through `src/services/bedrock.ts` (Converse, `maxTokens` 1024, no thinking) with the model in `BEDROCK_MODEL_ID` (default Haiku 4.5, `us.anthropic.claude-haiku-4-5-20251001-v1:0`). The role may invoke any foundation model or inference profile, so the model can be changed through the environment variable alone. Logs carry the account id, message id, model id, token usage and suggestion count — never prompt or response text.
+- **Bedrock.** Calls go through `src/services/bedrock.ts` (Converse, `maxTokens` 1024, no thinking, a 20-second timeout per attempt and at most 2 attempts) with the model in `BEDROCK_MODEL_ID` (default Haiku 4.5, `us.anthropic.claude-haiku-4-5-20251001-v1:0`). The role may invoke any foundation model or inference profile, so the model can be changed through the environment variable alone. Logs carry the account id, message id, model id, token usage and suggestion count — never prompt or response text.
 - **Kill switch.** The function's role attaches the fleet's `kill-switch-bedrock-${Environment}` managed policy. Flipping it makes every call fail with `AccessDeniedException`, which the endpoint answers with 503; the policy is the only spend cap on Bedrock.
-- **Quota table.** `SpamSuggestionUsageTable` (`emails-email-api-spam-suggestion-usage[-test]`) holds one item per account per UTC day (`Account`, `Day`). A conditional `UpdateItem` increments `Count` only while it is under the limit, so concurrent calls cannot overshoot, and the counter never lives in the account item, so saving the account cannot reset it. DynamoDB TTL on `Expires` removes each item two days later. The route is also throttled at a burst of 5 and 1 request per second.
+- **Quota table.** `SpamSuggestionUsageTable` (`emails-email-api-spam-suggestion-usage[-test]`) holds one item per account per UTC day (`Account`, `Day`). A conditional `UpdateItem` increments `Count` only while it is under the limit, so concurrent calls cannot overshoot, and the counter never lives in the account item, so saving the account cannot reset it. DynamoDB TTL on `Expires` removes each item two days later. A request that fails with a 500 or 503 after it was counted gives its use back. The route is also throttled at a burst of 5 and 1 request per second.
 
 ## Secrets
 

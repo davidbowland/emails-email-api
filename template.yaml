@@ -1017,7 +1017,7 @@ Resources:
             !Sub ['mailto:do-not-reply@${Domain}', Domain: !FindInMap [EnvironmentMap, !Ref Environment, domainEmail]]
       Events:
         # Internal-only, like PutReceivedEmailFunction: registered as an ApiKey event and never as
-        # an Http event. The neighbouring .../bounce route is on both doors because the UI calls it;
+        # an Http event. The neighboring .../bounce route is on both doors because the UI calls it;
         # that is not the precedent here.
         ApiKey:
           Type: Api

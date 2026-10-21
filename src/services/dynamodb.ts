@@ -242,17 +242,17 @@ export const setReceivedById = async (account: string, id: string, data: Email):
 
 const DAY_MS = 86_400_000
 
+const getUsageDay = (now: () => number): { day: string; dayStart: number } => {
+  const dayStart = Math.floor(now() / DAY_MS) * DAY_MS
+  return { day: new Date(dayStart).toISOString().slice(0, 10), dayStart }
+}
+
 // One item per account per UTC day, so the counter never shares an item with the account's Data:
 // a PUT of the account (a full PutItem) cannot reset it. The increment and the limit check are a
 // single conditional UpdateItem, so concurrent requests cannot both slip under the limit. Expires is
 // the DynamoDB TTL attribute: two days past the start of the counted day, by which time the item can
 // no longer be counted against.
 // Returns false when the account has already used its daily limit; any other failure is rethrown.
-const getUsageDay = (now: () => number): { day: string; dayStart: number } => {
-  const dayStart = Math.floor(now() / DAY_MS) * DAY_MS
-  return { day: new Date(dayStart).toISOString().slice(0, 10), dayStart }
-}
-
 export const incrementSpamSuggestionUsage = async (
   accountId: string,
   limit: number,
