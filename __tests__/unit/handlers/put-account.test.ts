@@ -14,6 +14,7 @@ describe('put-account', () => {
   const event = eventJson as unknown as APIGatewayProxyEventV2
 
   beforeAll(() => {
+    jest.mocked(dynamodb).getAccountById.mockResolvedValue(account)
     jest.mocked(events).extractAccountFromEvent.mockReturnValue(account)
     jest.mocked(events).validateUsernameInEvent.mockReturnValue(true)
   })
@@ -65,10 +66,19 @@ describe('put-account', () => {
     })
 
     test('expect no stored spamFilter passed for a new account', async () => {
-      jest.mocked(dynamodb).getAccountById.mockRejectedValueOnce(new Error('not found'))
+      jest.mocked(dynamodb).getAccountById.mockRejectedValueOnce(new Error('Account not found'))
       await putAccountHandler(event)
 
       expect(events.extractAccountFromEvent).toHaveBeenCalledWith(event, undefined)
+    })
+
+    test('expect INTERNAL_SERVER_ERROR and nothing stored when the stored account cannot be read', async () => {
+      jest.mocked(dynamodb).getAccountById.mockRejectedValueOnce(new Error('ThrottlingException'))
+      const result = await putAccountHandler(event)
+
+      expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
+      expect(events.extractAccountFromEvent).not.toHaveBeenCalled()
+      expect(dynamodb.setAccountById).not.toHaveBeenCalled()
     })
 
     test('expect INTERNAL_SERVER_ERROR on setAccountById reject', async () => {

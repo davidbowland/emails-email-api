@@ -225,14 +225,18 @@ describe('events', () => {
         },
       )
 
-      it.each(['user@domain.com', 'first.last+tag@mail.domain.co.uk', '@domain.com', 'domain.com', 'mail.domain.com'])(
-        'should accept trusted sender - %s',
-        (sender) => {
-          const result = formatSpamFilter({ ...spamFilter, trustedSenders: [sender] })
+      it.each([
+        'user@domain.com',
+        'first.last+tag@mail.domain.co.uk',
+        "o'brien@corp.com",
+        '@domain.com',
+        'domain.com',
+        'mail.domain.com',
+      ])('should accept trusted sender - %s', (sender) => {
+        const result = formatSpamFilter({ ...spamFilter, trustedSenders: [sender] })
 
-          expect(result.trustedSenders).toEqual([sender])
-        },
-      )
+        expect(result.trustedSenders).toEqual([sender])
+      })
 
       it.each([
         '*',
@@ -254,6 +258,10 @@ describe('events', () => {
         'user@do;main.com',
         '<user@domain.com>',
         '"user"@domain.com',
+        "user@o'brien.com",
+        "@o'brien.com",
+        "o'brien.com",
+        'user(x)@domain.com',
         'ex\u200bample.com',
       ])('should reject trusted sender - "%s"', (sender) => {
         const invalidSpamFilter = { ...spamFilter, trustedSenders: [sender] }

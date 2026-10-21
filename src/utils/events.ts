@@ -32,8 +32,9 @@ const HAS_LETTER_OR_DIGIT = /[\p{L}\p{N}]/u
 // An address (local@domain.tld), an @domain or a bare domain; each domain needs at least one dot so
 // a bare TLD such as "com" cannot trust half the internet. No whitespace and no wildcards.
 // Separators, quotes, brackets and invisible format characters (zero-width spaces among them) are
-// rejected too: an entry carrying them could be stored but never match a sender.
-const TRUSTED_SENDER_PATTERN = /^(?:[^\s@*<>,;"'()\p{Cf}]+@|@)?[^\s@*.<>,;"'()\p{Cf}]+(?:\.[^\s@*.<>,;"'()\p{Cf}]+)+$/u
+// rejected too: an entry carrying them could be stored but never match a sender. An apostrophe is
+// allowed in the local part only (o'brien@corp.com), never in a domain.
+const TRUSTED_SENDER_PATTERN = /^(?:[^\s@*<>,;"()\p{Cf}]+@|@)?[^\s@*.<>,;"'()\p{Cf}]+(?:\.[^\s@*.<>,;"'()\p{Cf}]+)+$/u
 
 // No message here quotes an entry: handlers echo these messages back and logs may carry them.
 const validateSpamFilterList = (
