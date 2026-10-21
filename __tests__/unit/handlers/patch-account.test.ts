@@ -120,6 +120,16 @@ describe('patch-account', () => {
       expect(dynamodb.setAccountById).not.toHaveBeenCalled()
     })
 
+    test('expect FORBIDDEN when removing the whole spamFilter', async () => {
+      jest
+        .mocked(events)
+        .extractJsonPatchFromEvent.mockReturnValueOnce([{ op: 'remove', path: '/spamFilter' }] as PatchOperation[])
+      const result = await patchAccountHandler(event)
+
+      expect(result).toEqual(status.FORBIDDEN)
+      expect(dynamodb.setAccountById).not.toHaveBeenCalled()
+    })
+
     test('expect formatAccount to validate the post-patch account', async () => {
       const spamFilterEvent = spamFilterEventJson as unknown as APIGatewayProxyEventV2
       const patchedAccount = {

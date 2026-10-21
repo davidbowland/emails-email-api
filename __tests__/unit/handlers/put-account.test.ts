@@ -56,6 +56,21 @@ describe('put-account', () => {
       expect(dynamodb.setAccountById).toHaveBeenCalledWith(accountId, { ...account, spamFilter })
     })
 
+    test('expect the stored spamFilter passed through so a PUT without one keeps it', async () => {
+      const storedSpamFilter = { blockPhrases: ['act now'], sensitivity: 'high' as const, trustedSenders: [] }
+      jest.mocked(dynamodb).getAccountById.mockResolvedValueOnce({ ...account, spamFilter: storedSpamFilter })
+      await putAccountHandler(event)
+
+      expect(events.extractAccountFromEvent).toHaveBeenCalledWith(event, storedSpamFilter)
+    })
+
+    test('expect no stored spamFilter passed for a new account', async () => {
+      jest.mocked(dynamodb).getAccountById.mockRejectedValueOnce(new Error('not found'))
+      await putAccountHandler(event)
+
+      expect(events.extractAccountFromEvent).toHaveBeenCalledWith(event, undefined)
+    })
+
     test('expect INTERNAL_SERVER_ERROR on setAccountById reject', async () => {
       jest.mocked(dynamodb).setAccountById.mockRejectedValueOnce(undefined)
       const result = await putAccountHandler(event)

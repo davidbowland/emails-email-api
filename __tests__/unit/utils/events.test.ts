@@ -208,6 +208,12 @@ describe('events', () => {
         },
       )
 
+      it('should accept a block phrase whose only letter appears after NFKC normalization', () => {
+        const result = formatSpamFilter({ ...spamFilter, blockPhrases: ['ⓐ'] })
+
+        expect(result.blockPhrases).toEqual(['ⓐ'])
+      })
+
       it.each(['', '   ', '!!!', '$$ --', '…'])(
         'should reject block phrase without a letter or digit - %s',
         (phrase) => {
@@ -244,6 +250,11 @@ describe('events', () => {
         'domain..com',
         '.domain.com',
         'domain.com.',
+        'a,b@domain.com',
+        'user@do;main.com',
+        '<user@domain.com>',
+        '"user"@domain.com',
+        'ex\u200bample.com',
       ])('should reject trusted sender - "%s"', (sender) => {
         const invalidSpamFilter = { ...spamFilter, trustedSenders: [sender] }
 

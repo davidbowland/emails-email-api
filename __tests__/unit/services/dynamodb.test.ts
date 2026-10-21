@@ -287,6 +287,13 @@ describe('dynamodb', () => {
         )
       })
 
+      test.each([0, -1, NaN])('expect false without calling DynamoDB when the limit is %s', async (limit) => {
+        const result = await incrementSpamSuggestionUsage(accountId, limit, now)
+
+        expect(result).toBe(false)
+        expect(mockSend).not.toHaveBeenCalled()
+      })
+
       test('expect true when under the limit', async () => {
         const result = await incrementSpamSuggestionUsage(accountId, 20, now)
 

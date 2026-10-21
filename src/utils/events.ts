@@ -31,7 +31,9 @@ const SPAM_FILTER_MAX_ENTRY_LENGTH = 100
 const HAS_LETTER_OR_DIGIT = /[\p{L}\p{N}]/u
 // An address (local@domain.tld), an @domain or a bare domain; each domain needs at least one dot so
 // a bare TLD such as "com" cannot trust half the internet. No whitespace and no wildcards.
-const TRUSTED_SENDER_PATTERN = /^(?:[^\s@*]+@|@)?[^\s@*.]+(?:\.[^\s@*.]+)+$/u
+// Separators, quotes, brackets and invisible format characters (zero-width spaces among them) are
+// rejected too: an entry carrying them could be stored but never match a sender.
+const TRUSTED_SENDER_PATTERN = /^(?:[^\s@*<>,;"'()\p{Cf}]+@|@)?[^\s@*.<>,;"'()\p{Cf}]+(?:\.[^\s@*.<>,;"'()\p{Cf}]+)+$/u
 
 // No message here quotes an entry: handlers echo these messages back and logs may carry them.
 const validateSpamFilterList = (
@@ -70,7 +72,8 @@ export const formatSpamFilter = (spamFilter: SpamFilter): SpamFilter => {
     blockPhrases: validateSpamFilterList(
       spamFilter.blockPhrases,
       'blockPhrases',
-      (phrase) => HAS_LETTER_OR_DIGIT.test(phrase),
+      // Checked after NFKC, the same normalization the phrase matcher applies first.
+      (phrase) => HAS_LETTER_OR_DIGIT.test(phrase.normalize('NFKC')),
       'contain at least one letter or number',
     ),
     sensitivity: spamFilter.sensitivity,
@@ -88,8 +91,8 @@ export const formatSpamFilter = (spamFilter: SpamFilter): SpamFilter => {
 // storedSpamFilter is what an account write keeps when the request carries no spamFilter at all, so
 // a client that predates the field cannot wipe the owner's rules. On PATCH the stored account is the
 // patch target, so its spamFilter is always present and is validated as part of the post-patch
-// account. On PUT, put-account.ts does not read the stored item, so the default applies there unless
-// the caller passes the stored value through extractAccountFromEvent.
+// account. On PUT, put-account.ts reads the stored item and passes its spamFilter through
+// extractAccountFromEvent; the default applies only when nothing is stored.
 export const formatAccount = (account: Account, storedSpamFilter: SpamFilter = DEFAULT_SPAM_FILTER): Account => {
   if (!Array.isArray(account.bounceSenders)) {
     throw new Error('bounceSenders must be an array of email addresses or domains')

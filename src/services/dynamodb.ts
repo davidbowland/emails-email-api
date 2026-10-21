@@ -253,6 +253,11 @@ export const incrementSpamSuggestionUsage = async (
   limit: number,
   now: () => number = Date.now,
 ): Promise<boolean> => {
+  // A limit of zero, or a misconfigured NaN, allows nothing -- never a first call through
+  // attribute_not_exists, and never a ValidationException surfacing as a 500.
+  if (!(limit > 0)) {
+    return false
+  }
   const dayStart = Math.floor(now() / DAY_MS) * DAY_MS
   const day = new Date(dayStart).toISOString().slice(0, 10)
   const expires = Math.floor((dayStart + 2 * DAY_MS) / 1000)

@@ -20,8 +20,13 @@ const isAllowedPatchPath = (path: string): boolean =>
 // any field of the account into an allowed one. Neither is needed by any client.
 const DISALLOWED_PATCH_OPS = ['move', 'copy']
 
+// Removing the whole spamFilter would silently reset every rule; members may still be removed and
+// the result is validated as a whole.
+const isSpamFilterRemoval = (operation: PatchOperation): boolean =>
+  operation.op === 'remove' && operation.path === '/spamFilter'
+
 const isAllowedPatchOperation = (operation: PatchOperation): boolean =>
-  !DISALLOWED_PATCH_OPS.includes(operation.op) && isAllowedPatchPath(operation.path)
+  !DISALLOWED_PATCH_OPS.includes(operation.op) && !isSpamFilterRemoval(operation) && isAllowedPatchPath(operation.path)
 
 const applyJsonPatch = async (
   account: Account,
