@@ -53,6 +53,7 @@ it('sets createdAt', () => {
 Use the utilities in `src/utils/logging.ts`:
 
 - `log()` — informational messages (processing steps, S3 uploads).
+- `logWarn()` — expected but notable conditions that must not page an admin (e.g. the Bedrock kill switch, a failed spam suggestion quota refund).
 - `logError()` — exceptions that need admin attention; every Lambda's CloudWatch LogGroup has an `ERROR`-filter subscription to `log-subscriber`, so `logError` calls fan out to admin notification.
 - **Never log PII or credentials directly.** Handlers log the inbound event via `log('Received event', redactEvent(event))` — `redactEvent` (in `src/utils/logging.ts`) strips the body, `Authorization`/`x-api-key` headers (in both `headers` and REST's `multiValueHeaders`), all JWT claims except `sub`, and the REST API's echoed `requestContext.identity.apiKey`. Never add a raw `log('...', event)` call that bypasses `redactEvent`.
 - Wrap AWS SDK v3 clients with `xrayCapture()`; call `xrayCaptureHttps()` once before making external HTTPS calls (e.g. via axios) so they're traced.

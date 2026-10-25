@@ -19,6 +19,11 @@ export const account: Account = {
   forwardTargets: ['any@domain.com'],
   name: 'Any',
   notificationPreview: 'sender-and-subject',
+  spamFilter: {
+    blockPhrases: [],
+    sensitivity: 'medium',
+    trustedSenders: [],
+  },
 }
 
 export const accountBatch: AccountBatch[] = [

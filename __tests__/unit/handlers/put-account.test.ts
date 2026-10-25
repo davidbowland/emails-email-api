@@ -14,6 +14,7 @@ describe('put-account', () => {
   const event = eventJson as unknown as APIGatewayProxyEventV2
 
   beforeAll(() => {
+    jest.mocked(dynamodb).getAccountById.mockResolvedValue(account)
     jest.mocked(events).extractAccountFromEvent.mockReturnValue(account)
     jest.mocked(events).validateUsernameInEvent.mockReturnValue(true)
   })
@@ -33,6 +34,51 @@ describe('put-account', () => {
       const result = await putAccountHandler(event)
 
       expect(result).toEqual(expect.objectContaining(status.BAD_REQUEST))
+    })
+
+    test('expect BAD_REQUEST and nothing stored when spamFilter is invalid', async () => {
+      jest.mocked(events).extractAccountFromEvent.mockImplementationOnce(() => {
+        throw new Error('spamFilter.trustedSenders must have 100 entries or fewer')
+      })
+      const result = await putAccountHandler(event)
+
+      expect(result).toEqual({
+        ...status.BAD_REQUEST,
+        body: JSON.stringify({ message: 'spamFilter.trustedSenders must have 100 entries or fewer' }),
+      })
+      expect(dynamodb.setAccountById).not.toHaveBeenCalled()
+    })
+
+    test('expect the validated spamFilter stored', async () => {
+      const spamFilter = { blockPhrases: ['act now'], sensitivity: 'high' as const, trustedSenders: ['@domain.com'] }
+      jest.mocked(events).extractAccountFromEvent.mockReturnValueOnce({ ...account, spamFilter })
+      await putAccountHandler(event)
+
+      expect(dynamodb.setAccountById).toHaveBeenCalledWith(accountId, { ...account, spamFilter })
+    })
+
+    test('expect the stored spamFilter passed through so a PUT without one keeps it', async () => {
+      const storedSpamFilter = { blockPhrases: ['act now'], sensitivity: 'high' as const, trustedSenders: [] }
+      jest.mocked(dynamodb).getAccountById.mockResolvedValueOnce({ ...account, spamFilter: storedSpamFilter })
+      await putAccountHandler(event)
+
+      expect(events.extractAccountFromEvent).toHaveBeenCalledWith(event, storedSpamFilter)
+    })
+
+    test('expect no stored spamFilter passed for a new account', async () => {
+      jest.mocked(dynamodb).getAccountById.mockRejectedValueOnce(new Error('Account not found'))
+      await putAccountHandler(event)
+
+      expect(events.extractAccountFromEvent).toHaveBeenCalledWith(event, undefined)
+    })
+
+    test('expect INTERNAL_SERVER_ERROR and nothing stored when the stored account cannot be read', async () => {
+      jest.mocked(dynamodb).getAccountById.mockRejectedValueOnce(new Error('ThrottlingException'))
+      const result = await putAccountHandler(event)
+
+      expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
+      expect(events.extractAccountFromEvent).not.toHaveBeenCalled()
+      expect(dynamodb.setAccountById).not.toHaveBeenCalled()
     })
 
     test('expect INTERNAL_SERVER_ERROR on setAccountById reject', async () => {

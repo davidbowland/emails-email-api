@@ -41,11 +41,20 @@ export const NOTIFICATION_PREVIEWS: NotificationPreview[] = ['sender-and-subject
 
 export const DEFAULT_NOTIFICATION_PREVIEW: NotificationPreview = 'sender-and-subject'
 
+export type SpamSensitivity = 'low' | 'medium' | 'high'
+
+export interface SpamFilter {
+  blockPhrases: string[]
+  sensitivity: SpamSensitivity
+  trustedSenders: string[]
+}
+
 export interface Account {
   bounceSenders: string[]
   forwardTargets: string[]
   name: string
   notificationPreview: NotificationPreview
+  spamFilter: SpamFilter
 }
 
 export interface AccountBatch {
@@ -62,11 +71,15 @@ export interface EmailAttachment {
   type: string
 }
 
+export type EmailFolder = 'inbox' | 'spam'
+
 export interface Email {
   attachments?: EmailAttachment[]
   bcc?: string[]
   bounced?: boolean
   cc?: string[]
+  // Absent on every email stored before the spam filter existed; absent reads as 'inbox'.
+  folder?: EmailFolder
   from: string
   subject: string
   timestamp: number
@@ -135,6 +148,19 @@ export interface EmailOutbound {
   subject: string
   text: string
   to: EmailAddress[]
+}
+
+// Spam suggestions
+
+// Every kind only ever tightens the filter: a suggestion derived from a hostile email must not be
+// able to loosen it.
+export type SpamSuggestionKind = 'addBlockPhrase' | 'removeTrustedSender' | 'raiseSensitivity'
+
+export interface SpamSuggestion {
+  id: string
+  kind: SpamSuggestionKind
+  reason: string
+  value: string
 }
 
 // Push

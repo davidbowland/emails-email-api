@@ -13,7 +13,15 @@ import putAccountEventJson from '@events/put-account.json'
 import getEventJson from '@events/received/get-email.json'
 import putEmailEventJson from '@events/received/put-email.json'
 import postEventJson from '@events/sent/post-email.json'
-import { Account, APIGatewayProxyEventV2, Email, EmailAttachment, EmailOutbound, PushSubscription } from '@types'
+import {
+  Account,
+  APIGatewayProxyEventV2,
+  Email,
+  EmailAttachment,
+  EmailOutbound,
+  PushSubscription,
+  SpamFilter,
+} from '@types'
 import {
   convertOutboundToContents,
   convertOutboundToEmail,
@@ -27,6 +35,7 @@ import {
   formatEmail,
   formatEmailOutbound,
   formatPushSubscription,
+  formatSpamFilter,
   validateUsernameInEvent,
 } from '@utils/events'
 
@@ -47,8 +56,44 @@ describe('events', () => {
           forwardTargets: ['any@domain.com'],
           name: 'Any',
           notificationPreview: 'sender-and-subject',
+          spamFilter: { blockPhrases: [], sensitivity: 'medium', trustedSenders: [] },
         })
       })
+
+      it('should carry a valid spamFilter through', () => {
+        const spamFilter: SpamFilter = {
+          blockPhrases: ['act now'],
+          sensitivity: 'high',
+          trustedSenders: ['@domain.com'],
+        }
+        const formattedAccount = formatAccount({ ...account, spamFilter })
+
+        expect(formattedAccount.spamFilter).toEqual(spamFilter)
+      })
+
+      it('should keep the stored spamFilter when the account has none', () => {
+        const storedSpamFilter: SpamFilter = { blockPhrases: ['act now'], sensitivity: 'low', trustedSenders: [] }
+        const accountWithoutSpamFilter = { ...account, spamFilter: undefined } as unknown as Account
+        const formattedAccount = formatAccount(accountWithoutSpamFilter, storedSpamFilter)
+
+        expect(formattedAccount.spamFilter).toEqual(storedSpamFilter)
+      })
+
+      it('should default the spamFilter when the account has none and nothing is stored', () => {
+        const accountWithoutSpamFilter = { ...account, spamFilter: undefined } as unknown as Account
+        const formattedAccount = formatAccount(accountWithoutSpamFilter)
+
+        expect(formattedAccount.spamFilter).toEqual({ blockPhrases: [], sensitivity: 'medium', trustedSenders: [] })
+      })
+
+      it.each([null, 'a string', { ...account.spamFilter, sensitivity: 'extreme' }])(
+        'should throw error on invalid spamFilter - %s',
+        (spamFilter) => {
+          const invalidAccount = { ...account, spamFilter } as unknown as Account
+
+          expect(() => formatAccount(invalidAccount)).toThrow()
+        },
+      )
 
       it('should carry a valid notificationPreview through', () => {
         const accountWithPreference = { ...account, notificationPreview: 'sender-only' } as Account
@@ -83,6 +128,147 @@ describe('events', () => {
         const invalidAccount = { ...account, bounceSenders } as unknown as Account
 
         expect(() => formatAccount(invalidAccount)).toThrow()
+      })
+    })
+  })
+
+  describe('spam filter', () => {
+    describe('formatSpamFilter', () => {
+      const spamFilter: SpamFilter = { blockPhrases: [], sensitivity: 'medium', trustedSenders: [] }
+      const hundredEntries = Array.from({ length: 100 }, (_, index) => `phrase ${index}`)
+      const tooManyEntries = [...hundredEntries, 'one more']
+
+      it('should drop unknown fields', () => {
+        const spamFilterWithExtra = { ...spamFilter, something: 'invalid' } as unknown as SpamFilter
+
+        expect(formatSpamFilter(spamFilterWithExtra)).toEqual(spamFilter)
+      })
+
+      it.each(['low', 'medium', 'high'])('should accept sensitivity - %s', (sensitivity) => {
+        const result = formatSpamFilter({ ...spamFilter, sensitivity } as SpamFilter)
+
+        expect(result.sensitivity).toEqual(sensitivity)
+      })
+
+      it.each([undefined, 'extreme', 'MEDIUM', 2])('should reject sensitivity - %s', (sensitivity) => {
+        const invalidSpamFilter = { ...spamFilter, sensitivity } as unknown as SpamFilter
+
+        expect(() => formatSpamFilter(invalidSpamFilter)).toThrow('spamFilter.sensitivity must be one of')
+      })
+
+      it.each([undefined, null, 'a string', [], 7])(
+        'should reject a spamFilter that is not an object - %s',
+        (value) => {
+          expect(() => formatSpamFilter(value as unknown as SpamFilter)).toThrow('spamFilter must be an object')
+        },
+      )
+
+      it('should accept 100 entries of 100 characters', () => {
+        const longest = 'a'.repeat(100)
+        const result = formatSpamFilter({ ...spamFilter, blockPhrases: [...hundredEntries.slice(1), longest] })
+
+        expect(result.blockPhrases).toHaveLength(100)
+      })
+
+      it.each(['blockPhrases', 'trustedSenders'])('should reject a %s that is not an array', (name) => {
+        const invalidSpamFilter = { ...spamFilter, [name]: 'a string' } as unknown as SpamFilter
+
+        expect(() => formatSpamFilter(invalidSpamFilter)).toThrow(`spamFilter.${name} must be an array of strings`)
+      })
+
+      it.each(['blockPhrases', 'trustedSenders'])('should reject a %s with more than 100 entries', (name) => {
+        const invalidSpamFilter = { ...spamFilter, [name]: tooManyEntries } as unknown as SpamFilter
+
+        expect(() => formatSpamFilter(invalidSpamFilter)).toThrow(`spamFilter.${name} must have 100 entries or fewer`)
+      })
+
+      it.each(['blockPhrases', 'trustedSenders'])('should reject a %s with non-string entries', (name) => {
+        const invalidSpamFilter = { ...spamFilter, [name]: ['valid.com', 42] } as unknown as SpamFilter
+
+        expect(() => formatSpamFilter(invalidSpamFilter)).toThrow(`spamFilter.${name} must be an array of strings`)
+      })
+
+      it.each([
+        ['blockPhrases', 'a'.repeat(101)],
+        ['trustedSenders', `${'a'.repeat(97)}.com`],
+      ])('should reject a %s entry longer than 100 characters', (name, entry) => {
+        const invalidSpamFilter = { ...spamFilter, [name]: [entry] } as unknown as SpamFilter
+
+        expect(() => formatSpamFilter(invalidSpamFilter)).toThrow(
+          `spamFilter.${name} entries must be 100 characters or fewer`,
+        )
+      })
+
+      it.each(['act now', 'USD 12/hour', "won't", '42', 'café', 'привет', '中文'])(
+        'should accept block phrase - %s',
+        (phrase) => {
+          const result = formatSpamFilter({ ...spamFilter, blockPhrases: [phrase] })
+
+          expect(result.blockPhrases).toEqual([phrase])
+        },
+      )
+
+      it('should accept a block phrase whose only letter appears after NFKC normalization', () => {
+        const result = formatSpamFilter({ ...spamFilter, blockPhrases: ['ⓐ'] })
+
+        expect(result.blockPhrases).toEqual(['ⓐ'])
+      })
+
+      it.each(['', '   ', '!!!', '$$ --', '…'])(
+        'should reject block phrase without a letter or digit - %s',
+        (phrase) => {
+          const invalidSpamFilter = { ...spamFilter, blockPhrases: [phrase] }
+
+          expect(() => formatSpamFilter(invalidSpamFilter)).toThrow(
+            'spamFilter.blockPhrases entries must contain at least one letter or number',
+          )
+        },
+      )
+
+      it.each([
+        'user@domain.com',
+        'first.last+tag@mail.domain.co.uk',
+        "o'brien@corp.com",
+        '@domain.com',
+        'domain.com',
+        'mail.domain.com',
+      ])('should accept trusted sender - %s', (sender) => {
+        const result = formatSpamFilter({ ...spamFilter, trustedSenders: [sender] })
+
+        expect(result.trustedSenders).toEqual([sender])
+      })
+
+      it.each([
+        '*',
+        '*@domain.com',
+        '@*.com',
+        '*.domain.com',
+        'com',
+        '@com',
+        'user@domain',
+        'user@',
+        '@',
+        '',
+        'user name@domain.com',
+        'user@@domain.com',
+        'domain..com',
+        '.domain.com',
+        'domain.com.',
+        'a,b@domain.com',
+        'user@do;main.com',
+        '<user@domain.com>',
+        '"user"@domain.com',
+        "user@o'brien.com",
+        "@o'brien.com",
+        "o'brien.com",
+        'user(x)@domain.com',
+        'ex\u200bample.com',
+      ])('should reject trusted sender - "%s"', (sender) => {
+        const invalidSpamFilter = { ...spamFilter, trustedSenders: [sender] }
+
+        expect(() => formatSpamFilter(invalidSpamFilter)).toThrow(
+          'spamFilter.trustedSenders entries must be an email address, an @domain or a domain',
+        )
       })
     })
   })
@@ -263,6 +449,24 @@ describe('events', () => {
           to: ['account@domain.com'],
           viewed: false,
         })
+      })
+
+      it.each(['inbox', 'spam'])('should keep folder - %s', (folder) => {
+        const formattedEmail = formatEmail({ ...email, folder } as Email)
+
+        expect(formattedEmail.folder).toEqual(folder)
+      })
+
+      it('should leave folder absent when none provided', () => {
+        const formattedEmail = formatEmail(email)
+
+        expect(formattedEmail.folder).toBeUndefined()
+      })
+
+      it.each(['junk', 'Spam', '', null])('should throw error on invalid folder - %s', (folder) => {
+        const invalidEmail = { ...email, folder } as unknown as Email
+
+        expect(() => formatEmail(invalidEmail)).toThrow('folder must be one of inbox, spam, when present')
       })
 
       it('should throw error on invalid to', () => {
@@ -567,6 +771,24 @@ describe('events', () => {
         const result = extractAccountFromEvent(tempEvent)
 
         expect(result).toEqual({ ...account, notificationPreview: 'none' })
+      })
+
+      it('should keep the stored spamFilter for a body without spamFilter', () => {
+        const storedSpamFilter: SpamFilter = { blockPhrases: ['act now'], sensitivity: 'high', trustedSenders: [] }
+        const result = extractAccountFromEvent(event, storedSpamFilter)
+
+        expect(result).toEqual({ ...account, spamFilter: storedSpamFilter })
+      })
+
+      it('should reject a body with an invalid spamFilter', () => {
+        const tempEvent = {
+          ...event,
+          body: JSON.stringify({ ...account, spamFilter: { ...account.spamFilter, blockPhrases: ['!!!'] } }),
+        } as unknown as APIGatewayProxyEventV2
+
+        expect(() => extractAccountFromEvent(tempEvent)).toThrow(
+          'spamFilter.blockPhrases entries must contain at least one letter or number',
+        )
       })
 
       it('should reject invalid event', () => {

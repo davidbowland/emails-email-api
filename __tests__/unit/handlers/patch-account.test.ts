@@ -1,4 +1,5 @@
 import { account, accountId } from '../__mocks__'
+import spamFilterEventJson from '@events/patch-account-spam-filter.json'
 import eventJson from '@events/patch-account.json'
 import { patchAccountHandler } from '@handlers/patch-account'
 import * as dynamodb from '@services/dynamodb'
@@ -18,7 +19,7 @@ describe('patch-account', () => {
     jest.mocked(dynamodb).getAccountById.mockResolvedValue(account)
     jest.mocked(events).extractJsonPatchFromEvent.mockImplementation((event) => JSON.parse(event.body))
     jest.mocked(events).validateUsernameInEvent.mockReturnValue(true)
-    jest.mocked(events).formatAccount.mockReturnValue(account)
+    jest.mocked(events).formatAccount.mockImplementation((account) => account)
   })
 
   describe('patchAccountHandler', () => {
@@ -78,6 +79,81 @@ describe('patch-account', () => {
       const result = await patchAccountHandler(event)
 
       expect(result.statusCode).toEqual(status.OK.statusCode)
+    })
+
+    test.each([
+      ['/spamFilter', account.spamFilter],
+      ['/spamFilter/sensitivity', 'high'],
+      ['/spamFilter/blockPhrases/0', 'act now'],
+    ])('expect OK when patch operation path is %s', async (path, value) => {
+      jest
+        .mocked(events)
+        .extractJsonPatchFromEvent.mockReturnValueOnce([{ op: 'add', path, value }] as unknown[] as PatchOperation[])
+      const result = await patchAccountHandler(event)
+
+      expect(result.statusCode).toEqual(status.OK.statusCode)
+    })
+
+    test.each(['/spamFilterX', '/spam', '/notificationPreview'])(
+      'expect FORBIDDEN when patch operation path is %s',
+      async (path) => {
+        jest
+          .mocked(events)
+          .extractJsonPatchFromEvent.mockReturnValueOnce([
+            { op: 'replace', path, value: 'x' },
+          ] as unknown[] as PatchOperation[])
+        const result = await patchAccountHandler(event)
+
+        expect(result).toEqual(status.FORBIDDEN)
+      },
+    )
+
+    test.each(['move', 'copy'])('expect FORBIDDEN for %s operations even on allowed paths', async (op) => {
+      jest
+        .mocked(events)
+        .extractJsonPatchFromEvent.mockReturnValueOnce([
+          { from: '/forwardTargets/0', op, path: '/spamFilter/trustedSenders/0' },
+        ] as unknown[] as PatchOperation[])
+      const result = await patchAccountHandler(event)
+
+      expect(result).toEqual(status.FORBIDDEN)
+      expect(dynamodb.setAccountById).not.toHaveBeenCalled()
+    })
+
+    test('expect FORBIDDEN when removing the whole spamFilter', async () => {
+      jest
+        .mocked(events)
+        .extractJsonPatchFromEvent.mockReturnValueOnce([{ op: 'remove', path: '/spamFilter' }] as PatchOperation[])
+      const result = await patchAccountHandler(event)
+
+      expect(result).toEqual(status.FORBIDDEN)
+      expect(dynamodb.setAccountById).not.toHaveBeenCalled()
+    })
+
+    test('expect formatAccount to validate the post-patch account', async () => {
+      const spamFilterEvent = spamFilterEventJson as unknown as APIGatewayProxyEventV2
+      const patchedAccount = {
+        ...account,
+        spamFilter: { ...account.spamFilter, blockPhrases: ['act now'], sensitivity: 'high' },
+      }
+      const result = await patchAccountHandler(spamFilterEvent)
+
+      expect(events.formatAccount).toHaveBeenCalledWith(patchedAccount)
+      expect(dynamodb.setAccountById).toHaveBeenCalledWith(accountId, patchedAccount)
+      expect(result).toEqual(expect.objectContaining({ ...status.OK, body: JSON.stringify(patchedAccount) }))
+    })
+
+    test('expect BAD_REQUEST and nothing stored when the post-patch account is invalid', async () => {
+      jest.mocked(events).formatAccount.mockImplementationOnce(() => {
+        throw new Error('spamFilter.sensitivity must be one of low, medium, high')
+      })
+      const result = await patchAccountHandler(event)
+
+      expect(result).toEqual({
+        ...status.BAD_REQUEST,
+        body: JSON.stringify({ message: 'spamFilter.sensitivity must be one of low, medium, high' }),
+      })
+      expect(dynamodb.setAccountById).not.toHaveBeenCalled()
     })
 
     test('expect NOT_FOUND on getAccountById reject', async () => {
