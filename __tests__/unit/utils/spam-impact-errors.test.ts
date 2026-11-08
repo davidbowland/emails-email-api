@@ -17,7 +17,7 @@ describe('spam-impact-errors', () => {
       ['another error', new Error('Spam impact check deadline reached'), false],
       ['a non-error with the same name', { name: 'SpamImpactDeadlineError' }, false],
       ['undefined', undefined, false],
-    ])('should recognise %s', (_, error, expected) => {
+    ])('should recognize %s', (_, error, expected) => {
       expect(isSpamImpactDeadlineError(error)).toEqual(expected)
     })
   })
