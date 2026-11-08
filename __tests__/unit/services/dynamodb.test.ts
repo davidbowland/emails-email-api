@@ -527,44 +527,96 @@ describe('dynamodb', () => {
           .mockResolvedValueOnce({ Items: [toItem('three')], LastEvaluatedKey: pageKey('three') })
           .mockResolvedValueOnce({ Items: [toItem('four')] })
 
+      const deadlineError = { message: 'Spam impact check deadline reached', name: 'SpamImpactDeadlineError' }
+      const unabortedSignal = () => new AbortController().signal
+      // A query that only settles when its abort signal fires, as the SDK does for a slow request
+      const hangUntilAborted = (_: unknown, { abortSignal }: { abortSignal: AbortSignal }) =>
+        new Promise((_resolve, reject) =>
+          abortSignal.addEventListener('abort', () =>
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+          ),
+        )
+
       test('expect items from every page, following LastEvaluatedKey', async () => {
         setupThreePages()
-        const result = await getAllReceived(accountId, () => true)
+        const result = await getAllReceived(accountId, () => 5_000, unabortedSignal)
 
         expect(result.map(({ id }) => id)).toEqual(['one', 'two', 'three', 'four'])
         expect(result[0]).toEqual({ accountId, data: email, id: 'one' })
         expect(mockSend).toHaveBeenCalledTimes(3)
-        expect(mockSend).toHaveBeenNthCalledWith(1, query)
-        expect(mockSend).toHaveBeenNthCalledWith(2, { ...query, ExclusiveStartKey: pageKey('two') })
-        expect(mockSend).toHaveBeenNthCalledWith(3, { ...query, ExclusiveStartKey: pageKey('three') })
+        expect(mockSend).toHaveBeenNthCalledWith(1, query, { abortSignal: expect.any(AbortSignal) })
+        expect(mockSend).toHaveBeenNthCalledWith(
+          2,
+          { ...query, ExclusiveStartKey: pageKey('two') },
+          { abortSignal: expect.any(AbortSignal) },
+        )
+        expect(mockSend).toHaveBeenNthCalledWith(
+          3,
+          { ...query, ExclusiveStartKey: pageKey('three') },
+          { abortSignal: expect.any(AbortSignal) },
+        )
       })
 
-      test('expect the deadline error when shouldContinue is false before page 2', async () => {
+      test('expect each page to get a signal for the time left', async () => {
+        setupThreePages()
+        const timeLeft = jest.fn().mockReturnValueOnce(9_000).mockReturnValueOnce(6_000).mockReturnValueOnce(1)
+        const signals = [new AbortController().signal, new AbortController().signal, new AbortController().signal]
+        const createAbortSignal = jest
+          .fn()
+          .mockReturnValueOnce(signals[0])
+          .mockReturnValueOnce(signals[1])
+          .mockReturnValueOnce(signals[2])
+        await getAllReceived(accountId, timeLeft, createAbortSignal)
+
+        expect(createAbortSignal.mock.calls).toEqual([[9_000], [6_000], [1]])
+        expect(mockSend.mock.calls.map(([, options]) => options.abortSignal)).toEqual(signals)
+      })
+
+      test('expect the deadline error when no time is left before page 2', async () => {
         mockSend.mockResolvedValueOnce({ Items: [toItem('one')], LastEvaluatedKey: pageKey('one') })
-        const shouldContinue = jest.fn().mockReturnValueOnce(true).mockReturnValue(false)
+        const timeLeft = jest.fn().mockReturnValueOnce(100).mockReturnValue(0)
 
-        await expect(getAllReceived(accountId, shouldContinue)).rejects.toMatchObject({
-          name: 'SpamImpactDeadlineError',
-        })
+        await expect(getAllReceived(accountId, timeLeft, unabortedSignal)).rejects.toMatchObject(deadlineError)
         expect(mockSend).toHaveBeenCalledTimes(1)
-        expect(shouldContinue).toHaveBeenCalledTimes(2)
+        expect(timeLeft).toHaveBeenCalledTimes(2)
       })
 
-      test('expect the deadline error and no query when shouldContinue is false at the start', async () => {
-        await expect(getAllReceived(accountId, () => false)).rejects.toMatchObject({ name: 'SpamImpactDeadlineError' })
+      test.each([0, -50])('expect the deadline error and no query when %p ms are left at the start', async (left) => {
+        await expect(getAllReceived(accountId, () => left, unabortedSignal)).rejects.toMatchObject(deadlineError)
         expect(mockSend).not.toHaveBeenCalled()
+      })
+
+      test('expect the deadline error when a page is cut off by its time limit', async () => {
+        const controller = new AbortController()
+        mockSend.mockImplementationOnce(hangUntilAborted)
+        const pending = getAllReceived(
+          accountId,
+          () => 3_000,
+          () => controller.signal,
+        )
+        controller.abort()
+
+        await expect(pending).rejects.toMatchObject(deadlineError)
+      })
+
+      test('expect the default time limit to end a slow page', async () => {
+        mockSend.mockImplementationOnce(hangUntilAborted)
+
+        await expect(getAllReceived(accountId, () => 1)).rejects.toMatchObject(deadlineError)
       })
 
       test('expect an empty list when a page has no Items', async () => {
         mockSend.mockResolvedValueOnce({})
 
-        await expect(getAllReceived(accountId, () => true)).resolves.toEqual([])
+        await expect(getAllReceived(accountId, () => 5_000, unabortedSignal)).resolves.toEqual([])
       })
 
       test('expect reject when a query rejects', async () => {
         mockSend.mockRejectedValueOnce(new Error('ProvisionedThroughputExceededException'))
 
-        await expect(getAllReceived(accountId, () => true)).rejects.toThrow('ProvisionedThroughputExceededException')
+        await expect(getAllReceived(accountId, () => 5_000, unabortedSignal)).rejects.toThrow(
+          'ProvisionedThroughputExceededException',
+        )
       })
     })
 

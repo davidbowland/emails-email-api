@@ -34,16 +34,6 @@ const SHOWN_TEXT_LENGTH = 200
 const EXCLUDE_EMAIL_ID_MAX_LENGTH = 256
 const INBOX_PER_SPAM = SPAM_IMPACT_INBOX_LIMIT / SPAM_IMPACT_SPAM_LIMIT
 
-const SPAM_IMPACT_DEADLINE_ERROR_NAME = 'SpamImpactDeadlineError'
-
-// Thrown by getAllReceived when the deadline passes while the email list is loading. The message never quotes the
-// request.
-export const createSpamImpactDeadlineError = (): Error =>
-  Object.assign(new Error('Spam impact check deadline reached'), { name: SPAM_IMPACT_DEADLINE_ERROR_NAME })
-
-export const isSpamImpactDeadlineError = (error: unknown): boolean =>
-  error instanceof Error && error.name === SPAM_IMPACT_DEADLINE_ERROR_NAME
-
 // Emails stored before the spam filter carry no folder; they belong to the Inbox, as in get-all-emails.ts.
 export const getEmailFolder = (email: EmailBatch): EmailFolder => email.data.folder ?? 'inbox'
 
@@ -95,8 +85,9 @@ export const matchesPhrases = (
   return phraseWords.map((words) => matchers.some((matcher) => matcher(words)))
 }
 
+// Cut by code point, so an emoji or other astral character is never split in half
 const toShownText = (value: unknown): string =>
-  isString(value) ? sanitizeEmailText(value).slice(0, SHOWN_TEXT_LENGTH) : ''
+  isString(value) ? Array.from(sanitizeEmailText(value)).slice(0, SHOWN_TEXT_LENGTH).join('') : ''
 
 const toImpactEmail = (email: EmailBatch): SpamImpactEmail => ({
   from: toShownText(email.data.from),

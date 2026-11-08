@@ -1172,8 +1172,14 @@ Resources:
         - AWSLambdaBasicExecutionRole
         - DynamoDBReadPolicy:
             TableName: !Ref ReceivedTable
-        - S3ReadPolicy:
-            BucketName: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+        # Received emails only, and only GetObject: no listing, and nothing outside received/.
+        - Version: 2012-10-17
+          Statement:
+            - Action: ['s3:GetObject']
+              Effect: Allow
+              Resource: !Sub
+                - 'arn:${AWS::Partition}:s3:::${Bucket}/received/*'
+                - Bucket: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
       Environment:
         Variables:
           DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable

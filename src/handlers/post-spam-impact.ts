@@ -16,7 +16,6 @@ import { toWords } from '../utils/phrase-matching'
 import {
   buildImpactResponse,
   countByFolder,
-  isSpamImpactDeadlineError,
   matchesPhrases,
   parseImpactRequest,
   selectEmailsToCheck,
@@ -25,6 +24,7 @@ import {
   SPAM_IMPACT_DEADLINE_MS,
   SPAM_IMPACT_READ_TIMEOUT_MS,
 } from '../utils/spam-impact'
+import { isSpamImpactDeadlineError } from '../utils/spam-impact-errors'
 import status from '../utils/status'
 
 assertRequiredEnv('DYNAMODB_RECEIVED_TABLE_NAME', 'EMAIL_BUCKET')
@@ -96,14 +96,15 @@ const checkImpact = async (
   clock: () => number,
 ): Promise<APIGatewayProxyResultV2<any>> => {
   const deadline = requestedAt + SPAM_IMPACT_DEADLINE_MS
-  const isBeforeDeadline = (): boolean => clock() < deadline
-  const emails = await getAllReceived(accountId, isBeforeDeadline)
+  const timeLeft = (): number => deadline - clock()
+  const isBeforeDeadline = (): boolean => timeLeft() > 0
+  const emails = await getAllReceived(accountId, timeLeft)
   const { readOrder, totals } = selectEmailsToCheck(emails, request.excludeEmailId)
 
   const phraseWords = request.phrases.map(toWords)
   const { attempted, notAttempted } = await readInBatches(
     readOrder,
-    (email) => readEmail(accountId, email, phraseWords, () => deadline - clock()),
+    (email) => readEmail(accountId, email, phraseWords, timeLeft),
     isBeforeDeadline,
   )
   const results = attempted.filter((outcome): outcome is SpamEmailImpactResult => outcome.matches !== undefined)

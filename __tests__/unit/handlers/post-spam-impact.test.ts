@@ -7,7 +7,7 @@ import * as s3 from '@services/s3'
 import { APIGatewayProxyEventV2, EmailBatch, EmailFolder, ParsedMail } from '@types'
 import * as events from '@utils/events'
 import { log, logError, redactEvent } from '@utils/logging'
-import { createSpamImpactDeadlineError } from '@utils/spam-impact'
+import { createSpamImpactDeadlineError } from '@utils/spam-impact-errors'
 import status from '@utils/status'
 
 jest.mock('mailparser')
@@ -125,15 +125,15 @@ describe('post-spam-impact', () => {
       expect(s3.getS3ObjectStart).toHaveBeenCalledWith(expect.any(String), 262_144, expect.any(AbortSignal))
     })
 
-    test('expect getAllReceived to continue only before the deadline', async () => {
+    test('expect getAllReceived to be given the time left before the deadline', async () => {
       const clock = fixedClock()
       await postSpamImpactHandler(event, clock)
-      const shouldContinue = jest.mocked(dynamodb).getAllReceived.mock.calls[0][1]
+      const timeLeft = jest.mocked(dynamodb).getAllReceived.mock.calls[0][1]
 
       expect(dynamodb.getAllReceived).toHaveBeenCalledWith(accountId, expect.any(Function))
-      expect(shouldContinue()).toBe(true)
+      expect(timeLeft()).toEqual(20_000)
       clock.mockReturnValue(requestedAt + 20_000)
-      expect(shouldContinue()).toBe(false)
+      expect(timeLeft()).toEqual(0)
     })
 
     test('expect a base64-encoded body to be decoded', async () => {

@@ -23,7 +23,7 @@ import {
 } from '../config'
 import { Account, AccountBatch, DEFAULT_NOTIFICATION_PREVIEW, Email, EmailBatch, PushSubscription } from '../types'
 import { xrayCapture } from '../utils/logging'
-import { createSpamImpactDeadlineError } from '../utils/spam-impact'
+import { createSpamImpactDeadlineError } from '../utils/spam-impact-errors'
 
 const dynamodb = xrayCapture(new DynamoDBClient({ apiVersion: '2012-08-10' }))
 
@@ -227,25 +227,44 @@ export const getReceived = async (account: string): Promise<EmailBatch[]> => {
   return getReceivedFromScan(response)
 }
 
+// The page is sent with an abort signal for the time left, so a slow page ends at the deadline rather than at the
+// Lambda timeout. An abort is answered with the deadline error, whatever error the SDK raised for it.
+const getReceivedPage = async (command: QueryCommand, abortSignal: AbortSignal): Promise<QueryOutput> => {
+  try {
+    return await dynamodb.send(command, { abortSignal })
+  } catch (error: unknown) {
+    if (abortSignal.aborted) {
+      throw createSpamImpactDeadlineError()
+    }
+    throw error
+  }
+}
+
 const getReceivedPages = async (
   account: string,
-  shouldContinue: () => boolean,
+  timeLeft: () => number,
+  createAbortSignal: (ms: number) => AbortSignal,
   exclusiveStartKey?: Record<string, AttributeValue>,
 ): Promise<EmailBatch[]> => {
-  if (!shouldContinue()) {
+  const remaining = timeLeft()
+  if (!(remaining > 0)) {
     throw createSpamImpactDeadlineError()
   }
-  const response: QueryOutput = await dynamodb.send(buildReceivedQuery(account, exclusiveStartKey))
+  const response = await getReceivedPage(buildReceivedQuery(account, exclusiveStartKey), createAbortSignal(remaining))
   const items = getReceivedFromScan(response) ?? []
   return response.LastEvaluatedKey === undefined
     ? items
-    : [...items, ...(await getReceivedPages(account, shouldContinue, response.LastEvaluatedKey))]
+    : [...items, ...(await getReceivedPages(account, timeLeft, createAbortSignal, response.LastEvaluatedKey))]
 }
 
-// Every received email for the account, following LastEvaluatedKey. shouldContinue is asked before each page; when it
-// answers false, this throws the error from createSpamImpactDeadlineError.
-export const getAllReceived = async (account: string, shouldContinue: () => boolean): Promise<EmailBatch[]> =>
-  getReceivedPages(account, shouldContinue)
+// Every received email for the account, following LastEvaluatedKey. timeLeft (milliseconds until the deadline) is asked
+// before each page and limits that page; when no time is left, or a page is cut off, this throws the error from
+// createSpamImpactDeadlineError.
+export const getAllReceived = async (
+  account: string,
+  timeLeft: () => number,
+  createAbortSignal: (ms: number) => AbortSignal = AbortSignal.timeout,
+): Promise<EmailBatch[]> => getReceivedPages(account, timeLeft, createAbortSignal)
 
 export const setReceivedById = async (account: string, id: string, data: Email): Promise<PutItemOutput> => {
   const command = new PutItemCommand({

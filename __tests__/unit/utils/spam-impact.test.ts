@@ -15,8 +15,6 @@ import {
   SPAM_IMPACT_INBOX_LIMIT,
   SPAM_IMPACT_READ_TIMEOUT_MS,
   SPAM_IMPACT_SPAM_LIMIT,
-  createSpamImpactDeadlineError,
-  isSpamImpactDeadlineError,
 } from '@utils/spam-impact'
 
 interface RepeatedText {
@@ -74,27 +72,6 @@ describe('spam-impact', () => {
         SPAM_IMPACT_READ_TIMEOUT_MS: 3_000,
         SPAM_IMPACT_SPAM_LIMIT: 25,
       })
-    })
-  })
-
-  describe('createSpamImpactDeadlineError', () => {
-    it('should be an Error with its own name and no request content', () => {
-      const error = createSpamImpactDeadlineError()
-
-      expect(error).toBeInstanceOf(Error)
-      expect(error.name).toEqual('SpamImpactDeadlineError')
-      expect(error.message).toEqual('Spam impact check deadline reached')
-    })
-  })
-
-  describe('isSpamImpactDeadlineError', () => {
-    it.each([
-      ['the deadline error', createSpamImpactDeadlineError(), true],
-      ['another error', new Error('Spam impact check deadline reached'), false],
-      ['a non-error with the same name', { name: 'SpamImpactDeadlineError' }, false],
-      ['undefined', undefined, false],
-    ])('should recognise %s', (_, error, expected) => {
-      expect(isSpamImpactDeadlineError(error)).toEqual(expected)
     })
   })
 
@@ -316,6 +293,18 @@ describe('spam-impact', () => {
 
       expect(response.phrases[0].inbox.emails).toEqual([
         { from: `ab ${'f'.repeat(197)}`, id: 'long', subject: `q r${'s'.repeat(197)}` },
+      ])
+    })
+
+    it('should cut by code point, so an emoji at the boundary is never split', () => {
+      const email = makeEmail('emoji', 1, 'inbox', {
+        from: `${'f'.repeat(199)}\u{1F600}g`,
+        subject: `${'s'.repeat(198)}\u{1F600}\u{1F601}t`,
+      })
+      const response = buildImpactResponse(['x'], [{ email, matches: [true] }], { inbox: 1, spam: 0 }, none, none)
+
+      expect(response.phrases[0].inbox.emails).toEqual([
+        { from: `${'f'.repeat(199)}\u{1F600}`, id: 'emoji', subject: `${'s'.repeat(198)}\u{1F600}\u{1F601}` },
       ])
     })
 
