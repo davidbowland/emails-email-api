@@ -1,10 +1,10 @@
 import * as mailparser from 'mailparser'
 
 import eventJson from '@events/post-spam-impact.json'
-import { postSpamImpactHandler } from '@handlers/post-spam-impact'
+import { handleSpamImpact, postSpamImpactHandler } from '@handlers/post-spam-impact'
 import * as dynamodb from '@services/dynamodb'
 import * as s3 from '@services/s3'
-import { APIGatewayProxyEventV2, EmailBatch, EmailFolder, ParsedMail } from '@types'
+import { APIGatewayProxyEventV2, Context, EmailBatch, EmailFolder, ParsedMail } from '@types'
 import * as events from '@utils/events'
 import { log, logError, redactEvent } from '@utils/logging'
 import { createSpamImpactDeadlineError } from '@utils/spam-impact-errors'
@@ -60,10 +60,10 @@ describe('post-spam-impact', () => {
     jest.mocked(redactEvent).mockReturnValue({ redacted: true })
   })
 
-  describe('postSpamImpactHandler', () => {
+  describe('handleSpamImpact', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
       jest.mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
-      const result = await postSpamImpactHandler(event, fixedClock())
+      const result = await handleSpamImpact(event, fixedClock())
 
       expect(result).toEqual(status.FORBIDDEN)
       expect(dynamodb.getAllReceived).not.toHaveBeenCalled()
@@ -75,7 +75,7 @@ describe('post-spam-impact', () => {
       ['no phrases', JSON.stringify({ phrases: [] })],
       ['a phrase with no letter or digit', JSON.stringify({ phrases: ['!!!'] })],
     ])('expect BAD_REQUEST for %s', async (_, body) => {
-      const result = await postSpamImpactHandler({ ...event, body }, fixedClock())
+      const result = await handleSpamImpact({ ...event, body }, fixedClock())
 
       expect(result).toEqual(expect.objectContaining({ statusCode: 400 }))
       expect(JSON.parse(result.body).message).toEqual(expect.any(String))
@@ -83,7 +83,7 @@ describe('post-spam-impact', () => {
     })
 
     test('expect OK with every phrase checked against the newest emails', async () => {
-      const result = await postSpamImpactHandler(event, fixedClock())
+      const result = await handleSpamImpact(event, fixedClock())
 
       expect(result.statusCode).toEqual(200)
       expect(JSON.parse(result.body)).toEqual({
@@ -114,7 +114,7 @@ describe('post-spam-impact', () => {
     })
 
     test('expect each read to request the first 256 KB with an abort signal, and never the excluded email', async () => {
-      await postSpamImpactHandler(event, fixedClock())
+      await handleSpamImpact(event, fixedClock())
 
       expect(jest.mocked(s3).getS3ObjectStart.mock.calls.map(([key]) => key)).toEqual([
         `received/${accountId}/inbox-body`,
@@ -127,7 +127,7 @@ describe('post-spam-impact', () => {
 
     test('expect getAllReceived to be given the time left before the deadline', async () => {
       const clock = fixedClock()
-      await postSpamImpactHandler(event, clock)
+      await handleSpamImpact(event, clock)
       const timeLeft = jest.mocked(dynamodb).getAllReceived.mock.calls[0][1]
 
       expect(dynamodb.getAllReceived).toHaveBeenCalledWith(accountId, expect.any(Function))
@@ -138,7 +138,7 @@ describe('post-spam-impact', () => {
 
     test('expect a base64-encoded body to be decoded', async () => {
       const body = Buffer.from(JSON.stringify({ phrases: ['free money'] })).toString('base64')
-      const result = await postSpamImpactHandler({ ...event, body, isBase64Encoded: true }, fixedClock())
+      const result = await handleSpamImpact({ ...event, body, isBase64Encoded: true }, fixedClock())
 
       expect(result.statusCode).toEqual(200)
       expect(JSON.parse(result.body).phrases.map(({ phrase }) => phrase)).toEqual(['free money'])
@@ -153,7 +153,7 @@ describe('post-spam-impact', () => {
         clock.mockReturnValue(requestedAt + 20_001)
         return Buffer.from(key)
       })
-      const result = await postSpamImpactHandler(event, clock)
+      const result = await handleSpamImpact(event, clock)
       const body = JSON.parse(result.body)
 
       expect(result.statusCode).toEqual(200)
@@ -169,7 +169,7 @@ describe('post-spam-impact', () => {
 
     test('counts an unreadable email as failed', async () => {
       jest.mocked(s3).getS3ObjectStart.mockRejectedValueOnce(Object.assign(new Error('gone'), { name: 'NoSuchKey' }))
-      const result = await postSpamImpactHandler(event, fixedClock())
+      const result = await handleSpamImpact(event, fixedClock())
       const body = JSON.parse(result.body)
 
       expect(result.statusCode).toEqual(200)
@@ -180,7 +180,7 @@ describe('post-spam-impact', () => {
 
     test('expect an email that fails to parse to count as failed', async () => {
       jest.mocked(mailparser).simpleParser.mockRejectedValueOnce(new Error('bad mime'))
-      const result = await postSpamImpactHandler(event, fixedClock())
+      const result = await handleSpamImpact(event, fixedClock())
 
       expect(result.statusCode).toEqual(200)
       expect(JSON.parse(result.body).checked.inbox).toEqual({ checked: 2, total: 3 })
@@ -188,7 +188,7 @@ describe('post-spam-impact', () => {
 
     test('expect SERVICE_UNAVAILABLE with CHECK_TIMEOUT when the list cannot load in time', async () => {
       jest.mocked(dynamodb).getAllReceived.mockRejectedValueOnce(createSpamImpactDeadlineError())
-      const result = await postSpamImpactHandler(event, fixedClock())
+      const result = await handleSpamImpact(event, fixedClock())
 
       expect(result).toEqual({ body: JSON.stringify({ code: 'CHECK_TIMEOUT' }), statusCode: 503 })
       expect(logError).not.toHaveBeenCalled()
@@ -201,7 +201,7 @@ describe('post-spam-impact', () => {
         .getAllReceived.mockRejectedValueOnce(
           Object.assign(new Error('Rate exceeded'), { name: 'ProvisionedThroughputExceededException' }),
         )
-      const result = await postSpamImpactHandler(event, fixedClock())
+      const result = await handleSpamImpact(event, fixedClock())
 
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
       expect(logError).toHaveBeenCalledWith('Spam impact check failed', {
@@ -215,7 +215,7 @@ describe('post-spam-impact', () => {
         .fn()
         .mockReturnValue(requestedAt + 1_500)
         .mockReturnValueOnce(requestedAt)
-      await postSpamImpactHandler(event, clock)
+      await handleSpamImpact(event, clock)
       const [, details] = jest.mocked(log).mock.calls.find(([message]) => message === 'Spam impact check finished')!
 
       expect(Object.keys(details as object).sort()).toEqual([
@@ -241,10 +241,22 @@ describe('post-spam-impact', () => {
     })
 
     test('expect the event to be logged redacted', async () => {
-      await postSpamImpactHandler(event, fixedClock())
+      await handleSpamImpact(event, fixedClock())
 
       expect(redactEvent).toHaveBeenCalledWith(event)
       expect(log).toHaveBeenCalledWith('Received event', { redacted: true })
+    })
+  })
+
+  describe('postSpamImpactHandler', () => {
+    test('expect OK when Lambda passes a context as the second argument', async () => {
+      const result = await (postSpamImpactHandler as (...args: unknown[]) => ReturnType<typeof postSpamImpactHandler>)(
+        event,
+        {} as Context,
+      )
+
+      expect(result).toEqual(expect.objectContaining(status.OK))
+      expect(logError).not.toHaveBeenCalled()
     })
   })
 })

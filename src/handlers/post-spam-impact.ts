@@ -125,14 +125,16 @@ const checkImpact = async (
   return { ...status.OK, body: JSON.stringify(response) }
 }
 
-export const postSpamImpactHandler = async (
+// Takes the clock as a parameter so tests can inject one. Lambda must not call this directly: it passes the
+// context object as the second argument.
+export const handleSpamImpact = async (
   event: APIGatewayProxyEventV2,
   clock: () => number = Date.now,
 ): Promise<APIGatewayProxyResultV2<any>> => {
   log('Received event', redactEvent(event))
-  const requestedAt = clock()
   const accountId = event.pathParameters?.accountId as string
   try {
+    const requestedAt = clock()
     if (!validateUsernameInEvent(event, accountId)) {
       return status.FORBIDDEN
     }
@@ -152,3 +154,7 @@ export const postSpamImpactHandler = async (
     return status.INTERNAL_SERVER_ERROR
   }
 }
+
+// The Lambda entry point takes only the event, so Lambda's context argument never reaches the clock.
+export const postSpamImpactHandler = (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> =>
+  handleSpamImpact(event)
