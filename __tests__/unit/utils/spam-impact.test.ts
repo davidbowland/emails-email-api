@@ -1,3 +1,5 @@
+import { simpleParser } from 'mailparser'
+
 import vectors from '../spam-body-vectors.json'
 import { EmailBatch, EmailFolder, ParsedMail } from '@types'
 import { toWords } from '@utils/phrase-matching'
@@ -27,6 +29,27 @@ type ParsedParts = Pick<ParsedMail, 'subject' | 'text' | 'html'>
 // A vector string is either literal or a repeated character, as in spam-body.test.ts
 const resolveText = (value: string | RepeatedText | undefined): string | undefined =>
   typeof value === 'object' ? value.repeatChar.repeat(value.repeatCount) : value
+
+// The raw MIME builder from emails-inbound-service's spam-body-vectors.test.ts, so both repos parse the same bytes
+const part = (type: string, content: string): string =>
+  `--b\r\nContent-Type: ${type}; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${content}\r\n`
+
+const rawMessage = (subject: string, text?: string, html?: string): Buffer =>
+  Buffer.from(
+    [
+      'From: Pat Sender <sender@example.org>',
+      'To: user@example.net',
+      `Subject: ${subject}`,
+      'MIME-Version: 1.0',
+      'Content-Type: multipart/alternative; boundary="b"',
+      '',
+      text === undefined ? '' : part('text/plain', text),
+      html === undefined ? '' : part('text/html', html),
+      '--b--',
+      '',
+    ].join('\r\n'),
+    'utf-8',
+  )
 
 const makeEmail = (
   id: string,
@@ -195,6 +218,17 @@ describe('spam-impact', () => {
 
       expect(matchesPhrases(parsed, [toWords(phrase)])).toEqual([expected])
     })
+
+    it.each(vectors.wholeEmail)(
+      'vector through simpleParser: $note',
+      async ({ expected, html, phrase, subject, text }) => {
+        const parsed = await simpleParser(
+          rawMessage(resolveText(subject) as string, resolveText(text), resolveText(html)),
+        )
+
+        expect(matchesPhrases(parsed, [toWords(phrase)])).toEqual([expected])
+      },
+    )
 
     it.each([
       ['the text part', { subject: 'Hello', text: 'Get free money now' }],
