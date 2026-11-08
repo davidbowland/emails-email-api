@@ -163,6 +163,53 @@ export interface SpamSuggestion {
   value: string
 }
 
+// Spam impact
+
+export interface SpamFolderCounts {
+  inbox: number
+  spam: number
+}
+
+// One email read successfully, with one match flag per request phrase
+export interface SpamEmailImpactResult {
+  email: EmailBatch
+  matches: boolean[]
+}
+
+export interface SpamImpactRequest {
+  excludeEmailId?: string // an email to leave out, such as the one just moved to Spam
+  phrases: string[]
+}
+
+export interface SpamImpactEmail {
+  from: string // Email.from, sanitized, cut to 200 characters
+  id: string
+  subject: string // Email.subject, sanitized, cut to 200 characters
+}
+
+export interface SpamFolderImpact {
+  count: number // every match among the emails checked
+  emails: SpamImpactEmail[] // the newest SPAM_IMPACT_EMAILS_SHOWN (5) matches
+}
+
+export interface SpamPhraseImpact {
+  inbox: SpamFolderImpact
+  phrase: string // echoed exactly as sent
+  spam: SpamFolderImpact
+}
+
+export interface SpamCheckedCount {
+  checked: number // emails read successfully in time
+  total: number // emails in the folder, not counting excludeEmailId
+}
+
+export interface SpamImpactResponse {
+  checked: { inbox: SpamCheckedCount; spam: SpamCheckedCount }
+  // true when a read failed or the deadline cut reads short, so inbox.checked < the smaller of inbox.total and 100
+  inboxIncomplete: boolean
+  phrases: SpamPhraseImpact[] // one per request phrase, same order
+}
+
 // Push
 
 // The push carries facts, not sentences: the service worker assembles the English. These three

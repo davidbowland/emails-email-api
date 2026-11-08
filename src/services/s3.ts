@@ -44,6 +44,27 @@ export const getS3Object = async (key: string): Promise<AttachmentContents> => {
   return { body: body, metadata: response.Metadata }
 }
 
+// Reads at most byteLimit bytes from the start of the object. abortSignal cancels the request and the body stream,
+// so a slow read cannot hold the caller past its deadline.
+export const getS3ObjectStart = async (key: string, byteLimit: number, abortSignal: AbortSignal): Promise<Buffer> => {
+  const command = new GetObjectCommand({ Bucket: emailBucket, Key: key, Range: `bytes=0-${byteLimit - 1}` })
+  const response: GetObjectOutput = await s3.send(command, { abortSignal })
+  const stream = response.Body as Readable
+  const abort = (): void => {
+    stream.destroy(abortSignal.reason)
+  }
+  if (abortSignal.aborted) {
+    abort()
+  }
+  abortSignal.addEventListener('abort', abort, { once: true })
+  try {
+    const body = await readableToBuffer(stream)
+    return body.subarray(0, byteLimit)
+  } finally {
+    abortSignal.removeEventListener('abort', abort)
+  }
+}
+
 export const getSignedS3Url = async (key: string): Promise<string> => {
   const command = new GetObjectCommand({ Bucket: emailBucket, Key: key })
   return getSignedUrl(s3, command, { expiresIn: 300 })

@@ -6,6 +6,7 @@ import {
   deleteSentById,
   getAccountById,
   getAccounts,
+  getAllReceived,
   getPushSubscriptionsById,
   getReceived,
   getReceivedById,
@@ -489,6 +490,81 @@ describe('dynamodb', () => {
         const result = await getReceived(accountId)
 
         expect(result).toEqual([])
+      })
+
+      test('expect a single query even when more pages exist', async () => {
+        mockSend.mockResolvedValueOnce({ Items: [], LastEvaluatedKey: { Account: { S: accountId } } })
+        await getReceived(accountId)
+
+        expect(mockSend).toHaveBeenCalledTimes(1)
+        expect(mockSend).toHaveBeenCalledWith({
+          ExpressionAttributeNames: { '#d': 'Data' },
+          ExpressionAttributeValues: { ':v1': { S: accountId } },
+          KeyConditionExpression: 'Account = :v1',
+          ProjectionExpression: 'Account,MessageID,#d',
+          TableName: 'received-table',
+        })
+      })
+    })
+
+    describe('getAllReceived', () => {
+      const toItem = (id: string) => ({
+        Account: { S: accountId },
+        Data: { S: JSON.stringify(email) },
+        MessageID: { S: id },
+      })
+      const pageKey = (id: string) => ({ Account: { S: accountId }, MessageID: { S: id } })
+      const query = {
+        ExpressionAttributeNames: { '#d': 'Data' },
+        ExpressionAttributeValues: { ':v1': { S: accountId } },
+        KeyConditionExpression: 'Account = :v1',
+        ProjectionExpression: 'Account,MessageID,#d',
+        TableName: 'received-table',
+      }
+      const setupThreePages = () =>
+        mockSend
+          .mockResolvedValueOnce({ Items: [toItem('one'), toItem('two')], LastEvaluatedKey: pageKey('two') })
+          .mockResolvedValueOnce({ Items: [toItem('three')], LastEvaluatedKey: pageKey('three') })
+          .mockResolvedValueOnce({ Items: [toItem('four')] })
+
+      test('expect items from every page, following LastEvaluatedKey', async () => {
+        setupThreePages()
+        const result = await getAllReceived(accountId, () => true)
+
+        expect(result.map(({ id }) => id)).toEqual(['one', 'two', 'three', 'four'])
+        expect(result[0]).toEqual({ accountId, data: email, id: 'one' })
+        expect(mockSend).toHaveBeenCalledTimes(3)
+        expect(mockSend).toHaveBeenNthCalledWith(1, query)
+        expect(mockSend).toHaveBeenNthCalledWith(2, { ...query, ExclusiveStartKey: pageKey('two') })
+        expect(mockSend).toHaveBeenNthCalledWith(3, { ...query, ExclusiveStartKey: pageKey('three') })
+      })
+
+      test('expect the deadline error when shouldContinue is false before page 2', async () => {
+        mockSend.mockResolvedValueOnce({ Items: [toItem('one')], LastEvaluatedKey: pageKey('one') })
+        const shouldContinue = jest.fn().mockReturnValueOnce(true).mockReturnValue(false)
+
+        await expect(getAllReceived(accountId, shouldContinue)).rejects.toMatchObject({
+          name: 'SpamImpactDeadlineError',
+        })
+        expect(mockSend).toHaveBeenCalledTimes(1)
+        expect(shouldContinue).toHaveBeenCalledTimes(2)
+      })
+
+      test('expect the deadline error and no query when shouldContinue is false at the start', async () => {
+        await expect(getAllReceived(accountId, () => false)).rejects.toMatchObject({ name: 'SpamImpactDeadlineError' })
+        expect(mockSend).not.toHaveBeenCalled()
+      })
+
+      test('expect an empty list when a page has no Items', async () => {
+        mockSend.mockResolvedValueOnce({})
+
+        await expect(getAllReceived(accountId, () => true)).resolves.toEqual([])
+      })
+
+      test('expect reject when a query rejects', async () => {
+        mockSend.mockRejectedValueOnce(new Error('ProvisionedThroughputExceededException'))
+
+        await expect(getAllReceived(accountId, () => true)).rejects.toThrow('ProvisionedThroughputExceededException')
       })
     })
 

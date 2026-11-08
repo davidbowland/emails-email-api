@@ -1158,6 +1158,77 @@ Resources:
       FilterPattern: '[timestamp, uuid, level="ERROR", message]'
       LogGroupName: !Ref PostSpamSuggestionsLogGroup
 
+  PostSpamImpactFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/post-spam-impact.postSpamImpactHandler
+      Runtime: nodejs24.x
+      Architectures:
+        - x86_64
+      MemorySize: 1024
+      Description: emails-email-api check block phrases against recent received emails
+      # No Bedrock permission, and none may be added: mail read here must never reach a model.
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBReadPolicy:
+            TableName: !Ref ReceivedTable
+        - S3ReadPolicy:
+            BucketName: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+      Environment:
+        Variables:
+          DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable
+          EMAIL_BUCKET: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+      Events:
+        # Http only, never ApiKey: validateUsernameInEvent skips the ownership check on the internal
+        # domain, and nothing internal needs the check.
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}/spam-impact
+            Method: post
+            # Each call makes up to 125 S3 reads.
+            RouteSettings:
+              ThrottlingBurstLimit: 5
+              ThrottlingRateLimit: 1
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      # Under the HttpApi's 30-second integration limit. Reads stop starting at 20 seconds
+      # (SPAM_IMPACT_DEADLINE_MS), leaving the rest for the last batch and the response.
+      Timeout: 29
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: node24
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/post-spam-impact.ts
+
+  PostSpamImpactLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PostSpamImpactFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  PostSpamImpactLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref PostSpamImpactLogGroup
+
   ## Received attachments
 
   GetReceivedAttachmentFunction:

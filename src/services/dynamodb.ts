@@ -1,4 +1,5 @@
 import {
+  AttributeValue,
   DeleteItemCommand,
   DeleteItemOutput,
   DynamoDBClient,
@@ -6,6 +7,7 @@ import {
   PutItemCommand,
   PutItemOutput,
   QueryCommand,
+  QueryOutput,
   ScanCommand,
   ScanOutput,
   UpdateItemCommand,
@@ -21,6 +23,7 @@ import {
 } from '../config'
 import { Account, AccountBatch, DEFAULT_NOTIFICATION_PREVIEW, Email, EmailBatch, PushSubscription } from '../types'
 import { xrayCapture } from '../utils/logging'
+import { createSpamImpactDeadlineError } from '../utils/spam-impact'
 
 const dynamodb = xrayCapture(new DynamoDBClient({ apiVersion: '2012-08-10' }))
 
@@ -204,8 +207,9 @@ const getReceivedFromScan = (response: ScanOutput): EmailBatch[] =>
     [] as EmailBatch[],
   ) as EmailBatch[]
 
-export const getReceived = async (account: string): Promise<EmailBatch[]> => {
-  const command = new QueryCommand({
+const buildReceivedQuery = (account: string, exclusiveStartKey?: Record<string, AttributeValue>): QueryCommand =>
+  new QueryCommand({
+    ...(exclusiveStartKey === undefined ? {} : { ExclusiveStartKey: exclusiveStartKey }),
     ExpressionAttributeNames: { '#d': 'Data' },
     ExpressionAttributeValues: {
       ':v1': {
@@ -216,9 +220,32 @@ export const getReceived = async (account: string): Promise<EmailBatch[]> => {
     ProjectionExpression: 'Account,MessageID,#d',
     TableName: dynamodbReceivedTableName,
   })
-  const response = await dynamodb.send(command)
+
+// A single query: the list endpoint keeps DynamoDB's 1 MB page cut-off.
+export const getReceived = async (account: string): Promise<EmailBatch[]> => {
+  const response = await dynamodb.send(buildReceivedQuery(account))
   return getReceivedFromScan(response)
 }
+
+const getReceivedPages = async (
+  account: string,
+  shouldContinue: () => boolean,
+  exclusiveStartKey?: Record<string, AttributeValue>,
+): Promise<EmailBatch[]> => {
+  if (!shouldContinue()) {
+    throw createSpamImpactDeadlineError()
+  }
+  const response: QueryOutput = await dynamodb.send(buildReceivedQuery(account, exclusiveStartKey))
+  const items = getReceivedFromScan(response) ?? []
+  return response.LastEvaluatedKey === undefined
+    ? items
+    : [...items, ...(await getReceivedPages(account, shouldContinue, response.LastEvaluatedKey))]
+}
+
+// Every received email for the account, following LastEvaluatedKey. shouldContinue is asked before each page; when it
+// answers false, this throws the error from createSpamImpactDeadlineError.
+export const getAllReceived = async (account: string, shouldContinue: () => boolean): Promise<EmailBatch[]> =>
+  getReceivedPages(account, shouldContinue)
 
 export const setReceivedById = async (account: string, id: string, data: Email): Promise<PutItemOutput> => {
   const command = new PutItemCommand({
