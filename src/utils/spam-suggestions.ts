@@ -15,9 +15,9 @@ export interface SuggestionEmail {
   // Bare addresses from the From header and the Return-Path header, which G4 ties removeTrustedSender to.
   senderAddresses: string[]
   // The same body and subject before sanitizing, cut the same way. validateSuggestions requires a phrase to match
-  // in both, since the filter reads the raw email. They default to the sanitized fields when omitted.
-  rawSubject?: string
-  rawText?: string
+  // in both, since the filter reads the raw email. Required, so no caller can skip the raw-text check.
+  rawSubject: string
+  rawText: string
   subject: string
   text: string
 }
@@ -119,10 +119,10 @@ export const toSuggestionEmail = (parsed: ParsedMail): SuggestionEmail => {
 // matching both matches the raw email in the filter too. The cut never leaves half a word.
 const toModelFields = (
   email: SuggestionEmail,
-): Required<Pick<SuggestionEmail, 'from' | 'rawSubject' | 'rawText' | 'replyTo' | 'subject' | 'text'>> => ({
+): Pick<SuggestionEmail, 'from' | 'rawSubject' | 'rawText' | 'replyTo' | 'subject' | 'text'> => ({
   from: sanitizeEmailText(email.from).slice(0, MAX_HEADER_LENGTH),
-  rawSubject: cutAtWord(email.rawSubject ?? email.subject, MAX_HEADER_LENGTH),
-  rawText: cutAtWord(email.rawText ?? email.text, MAX_BODY_LENGTH),
+  rawSubject: cutAtWord(email.rawSubject, MAX_HEADER_LENGTH),
+  rawText: cutAtWord(email.rawText, MAX_BODY_LENGTH),
   replyTo: sanitizeEmailText(email.replyTo).slice(0, MAX_HEADER_LENGTH),
   subject: cutAtWord(sanitizeEmailText(email.subject), MAX_HEADER_LENGTH),
   text: cutAtWord(sanitizeEmailText(email.text), MAX_BODY_LENGTH),
