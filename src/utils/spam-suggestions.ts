@@ -14,6 +14,10 @@ export interface SuggestionEmail {
   replyTo: string
   // Bare addresses from the From header and the Return-Path header, which G4 ties removeTrustedSender to.
   senderAddresses: string[]
+  // The same body and subject before sanitizing, cut the same way. validateSuggestions requires a phrase to match
+  // in both, since the filter reads the raw email. They default to the sanitized fields when omitted.
+  rawSubject?: string
+  rawText?: string
   subject: string
   text: string
 }
@@ -42,6 +46,10 @@ const SENSITIVITY_LABELS: Record<SpamSensitivity, string> = { high: 'High', low:
 
 const WHITESPACE = /\s/u
 
+// Linear scan back from the end for the last whitespace character; 0 when there is none.
+const endOfLastWhitespace = (text: string, index = text.length): number =>
+  index === 0 || WHITESPACE.test(text.charAt(index - 1)) ? index : endOfLastWhitespace(text, index - 1)
+
 // Cuts at `limit` characters. When the cut falls inside a word, that partial word is dropped too, so the model
 // is never offered a fragment (such as "mone" from "money") that the inbound filter would not match.
 const cutAtWord = (text: string, limit: number): string => {
@@ -50,49 +58,73 @@ const cutAtWord = (text: string, limit: number): string => {
   }
   const cut = text.slice(0, limit)
   const isInsideWord = !WHITESPACE.test(cut.charAt(limit - 1)) && !WHITESPACE.test(text.charAt(limit))
-  return (isInsideWord ? cut.replace(/\S*$/u, '') : cut).trimEnd()
+  return (isInsideWord ? cut.slice(0, endOfLastWhitespace(cut)) : cut).trimEnd()
 }
 
 // The model reads the same text the viewer shows: the HTML-derived text when there is any, since the viewer
 // renders the HTML part first, and otherwise the text part. Each raw part is capped as the inbound filter caps it.
-export const pickSuggestionBody = (parsed: Pick<ParsedMail, 'html' | 'text'>): string => {
+const pickBodies = (parsed: Pick<ParsedMail, 'html' | 'text'>): { raw: string; sanitized: string } => {
   const htmlText =
     typeof parsed.html === 'string'
-      ? sanitizeEmailText(htmlToText(parsed.html.slice(0, MAX_SCORED_TEXT_LENGTH)).slice(0, MAX_SCORED_TEXT_LENGTH))
+      ? htmlToText(parsed.html.slice(0, MAX_SCORED_TEXT_LENGTH)).slice(0, MAX_SCORED_TEXT_LENGTH)
       : ''
-  const text = typeof parsed.text === 'string' ? sanitizeEmailText(parsed.text.slice(0, MAX_SCORED_TEXT_LENGTH)) : ''
-  return cutAtWord(htmlText.trim().length > 0 ? htmlText : text, MAX_BODY_LENGTH)
+  const text = typeof parsed.text === 'string' ? parsed.text.slice(0, MAX_SCORED_TEXT_LENGTH) : ''
+  const raw = sanitizeEmailText(htmlText).trim().length > 0 ? htmlText : text
+  return { raw: cutAtWord(raw, MAX_BODY_LENGTH), sanitized: cutAtWord(sanitizeEmailText(raw), MAX_BODY_LENGTH) }
+}
+
+export const pickSuggestionBody = (parsed: Pick<ParsedMail, 'html' | 'text'>): string => pickBodies(parsed).sanitized
+
+interface AddressEntry {
+  address?: string
+  group?: AddressEntry[]
 }
 
 interface AddressObject {
-  value?: { address?: string }[]
+  value?: AddressEntry[]
 }
 
-const toAddresses = (addresses: AddressObject | undefined): string[] =>
-  (addresses?.value ?? []).map(({ address }) => address).filter((address): address is string => !!address)
+// A From or Reply-To group (`Team: a@x, b@y;`) nests its addresses under `group`.
+const entryAddresses = ({ address, group }: AddressEntry): string[] =>
+  address ? [address] : (group ?? []).flatMap(entryAddresses)
+
+const toAddresses = (addresses: AddressObject | undefined): string[] => (addresses?.value ?? []).flatMap(entryAddresses)
 
 export const toSuggestionEmail = (parsed: ParsedMail): SuggestionEmail => {
-  // mailparser gives Return-Path as an address object, not a string, and nothing when the header is absent.
-  const returnPath = parsed.headers?.get('return-path') as AddressObject | undefined
+  // mailparser gives Return-Path as an address object, not a string: nothing when the header is absent and an
+  // array of them when it is repeated.
+  const returnPaths =
+    parsed.headers instanceof Map
+      ? [(parsed.headers.get('return-path') ?? []) as AddressObject | AddressObject[]].flat()
+      : []
   const replyTo = parsed.replyTo as AddressObject | undefined
+  const bodies = pickBodies(parsed)
   return {
     from: sanitizeEmailText(parsed.from?.text ?? ''),
     replyTo: sanitizeEmailText(toAddresses(replyTo).join(', ')),
-    senderAddresses: [...toAddresses(parsed.from as AddressObject | undefined), ...toAddresses(returnPath)].map(
-      sanitizeEmailText,
-    ),
-    subject: sanitizeEmailText(parsed.subject ?? ''),
-    text: pickSuggestionBody(parsed),
+    rawSubject: cutAtWord(parsed.subject ?? '', MAX_HEADER_LENGTH),
+    rawText: bodies.raw,
+    senderAddresses: [
+      ...toAddresses(parsed.from as AddressObject | undefined),
+      ...returnPaths.flatMap(toAddresses),
+    ].map(sanitizeEmailText),
+    subject: cutAtWord(sanitizeEmailText(parsed.subject ?? ''), MAX_HEADER_LENGTH),
+    text: bodies.sanitized,
   }
 }
 
 // The same text everywhere: the prompt and validateSuggestions both see the sanitized, cut fields, so a phrase
-// that passes validation is in the text the model was shown (and, since the cut never leaves half a word, in the
-// text the inbound filter reads).
-const toModelFields = (email: SuggestionEmail): Pick<SuggestionEmail, 'from' | 'replyTo' | 'subject' | 'text'> => ({
+// that passes validation is in the text the model was shown. It must also match the raw text, because toWords
+// normalizes (NFKC) before deleting format characters and sanitizing deletes first, so the two can differ; a phrase
+// matching both matches the raw email in the filter too. The cut never leaves half a word.
+const toModelFields = (
+  email: SuggestionEmail,
+): Required<Pick<SuggestionEmail, 'from' | 'rawSubject' | 'rawText' | 'replyTo' | 'subject' | 'text'>> => ({
   from: sanitizeEmailText(email.from).slice(0, MAX_HEADER_LENGTH),
+  rawSubject: cutAtWord(email.rawSubject ?? email.subject, MAX_HEADER_LENGTH),
+  rawText: cutAtWord(email.rawText ?? email.text, MAX_BODY_LENGTH),
   replyTo: sanitizeEmailText(email.replyTo).slice(0, MAX_HEADER_LENGTH),
-  subject: sanitizeEmailText(email.subject).slice(0, MAX_HEADER_LENGTH),
+  subject: cutAtWord(sanitizeEmailText(email.subject), MAX_HEADER_LENGTH),
   text: cutAtWord(sanitizeEmailText(email.text), MAX_BODY_LENGTH),
 })
 
@@ -242,9 +274,10 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 // cannot put a contact in front of the owner in our voice. A false positive only swaps in the fixed reason.
 const REASON_PATTERNS = [
   /:\/\/|www\./i, // URL
-  /[\p{L}\p{N}-]+\.\p{L}{2,}/u, // domain
+  // domain: also ideographic full stops, "[.]", "(.)", "(dot)" and "[dot]"
+  /[\p{L}\p{N}-]+(?:[.。｡]|[[(][.。｡][\])]|[[(]dot[\])])\p{L}{2,}/iu,
   /@/, // email address
-  /\d(?:[\s.\-()]*\d){6}/, // phone-like: 7 or more digits
+  /\d(?:[\s.\-()/_]*\d){6}/, // phone-like: 7 or more digits
   /</, // markup
 ]
 
@@ -267,7 +300,7 @@ const toCandidate = (raw: unknown): Candidate | undefined => {
   const kind = SUGGESTION_KINDS.find((allowed) => allowed === raw.kind)
   const cleanedReason = cleanModelText(raw.reason.slice(0, MAX_REASON_SCAN_LENGTH))
   const reason =
-    kind && REASON_PATTERNS.some((pattern) => pattern.test(cleanedReason))
+    kind && REASON_PATTERNS.some((pattern) => pattern.test(cleanedReason.normalize('NFKC')))
       ? FIXED_REASONS[kind]
       : cleanedReason.slice(0, MAX_REASON_LENGTH)
   const value = cleanModelText(raw.value)
@@ -336,6 +369,12 @@ const resolveCandidate = (
   return isRaise ? { ...candidate, value: sensitivity } : undefined
 }
 
+const matchesBoth = (raw: string, sanitized: string): ((phraseWords: string[]) => boolean) => {
+  const matchesRaw = createPhraseMatcher(toWords(raw))
+  const matchesSanitized = createPhraseMatcher(toWords(sanitized))
+  return (phraseWords) => matchesRaw(phraseWords) && matchesSanitized(phraseWords)
+}
+
 export const validateSuggestions = (
   rawToolInput: unknown,
   account: Account,
@@ -349,9 +388,9 @@ export const validateSuggestions = (
   // G3: match against the same sanitized, cut text the model was given.
   const fields = toModelFields(email)
   const emailMatchers: EmailMatchers = {
-    body: createPhraseMatcher(toWords(fields.text)),
+    body: matchesBoth(fields.rawText, fields.text),
     senderAddresses: email.senderAddresses,
-    subject: createPhraseMatcher(toWords(fields.subject)),
+    subject: matchesBoth(fields.rawSubject, fields.subject),
   }
 
   const accepted = rawSuggestions.map(toCandidate).reduce(

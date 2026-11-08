@@ -3,6 +3,7 @@ import { ConverseCommandOutput } from '@aws-sdk/client-bedrock-runtime'
 import { account } from '../__mocks__'
 import { bedrockModelId } from '@config'
 import { Account, ParsedMail } from '@types'
+import { sanitizeEmailText } from '@utils/email-text'
 import {
   buildSuggestionRequest,
   extractSuggestionToolInput,
@@ -154,6 +155,12 @@ describe('spam-suggestions', () => {
       expect(body.endsWith('x')).toBe(true)
     })
 
+    test('expect a long final token dropped without scanning it repeatedly', () => {
+      const body = pickSuggestionBody({ html: false, text: `${'x'.repeat(11_990)} ${'y'.repeat(100)}` })
+
+      expect(body).toEqual('x'.repeat(11_990))
+    })
+
     test('expect a word that ends exactly at the limit kept', () => {
       const body = pickSuggestionBody({ html: false, text: `${'x '.repeat(5_998)}mone y` })
 
@@ -193,6 +200,51 @@ describe('spam-suggestions', () => {
       ])
     })
 
+    test('expect every address from repeated Return-Path headers, an empty <> and a From group', () => {
+      const headers = new Map([
+        [
+          'return-path',
+          [
+            { value: [{ address: 'one@mailer.example', name: '' }] },
+            { value: [{ address: '', name: '' }] },
+            { value: [{ address: 'two@mailer.example', name: '' }] },
+          ],
+        ],
+      ])
+      const from = {
+        text: 'Team: a@group.example, b@group.example;',
+        value: [
+          {
+            group: [
+              { address: 'a@group.example', name: '' },
+              { address: 'b@group.example', name: '' },
+            ],
+            name: 'Team',
+          },
+        ],
+      }
+
+      expect(toSuggestionEmail(parsed({ from, headers })).senderAddresses).toEqual([
+        'a@group.example',
+        'b@group.example',
+        'one@mailer.example',
+        'two@mailer.example',
+      ])
+    })
+
+    test('expect an empty Return-Path to add nothing and a non-Map headers value to give no Return-Path', () => {
+      const empty = new Map([['return-path', { value: [{ address: '', name: '' }] }]])
+
+      expect(toSuggestionEmail(parsed({ headers: empty })).senderAddresses).toEqual([
+        'prizes@spam.example',
+        'second@other.example',
+      ])
+      expect(toSuggestionEmail(parsed({ headers: {} })).senderAddresses).toEqual([
+        'prizes@spam.example',
+        'second@other.example',
+      ])
+    })
+
     test('expect a missing Return-Path and missing From to add nothing', () => {
       expect(toSuggestionEmail(parsed({ from: undefined })).senderAddresses).toEqual([])
       expect(toSuggestionEmail(parsed({ headers: undefined, from: undefined })).senderAddresses).toEqual([])
@@ -201,6 +253,8 @@ describe('spam-suggestions', () => {
     test('expect the display fields built from the parsed email', () => {
       expect(toSuggestionEmail(parsed({}))).toEqual({
         from: 'Prize Desk <prizes@spam.example>',
+        rawSubject: 'A subject',
+        rawText: 'A body',
         replyTo: 'claims@spam.example',
         senderAddresses: ['prizes@spam.example', 'second@other.example'],
         subject: 'A subject',
@@ -211,6 +265,8 @@ describe('spam-suggestions', () => {
     test('expect empty fields when the email has none', () => {
       expect(toSuggestionEmail({ headers: new Map() } as unknown as ParsedMail)).toEqual({
         from: '',
+        rawSubject: '',
+        rawText: '',
         replyTo: '',
         senderAddresses: [],
         subject: '',
@@ -230,6 +286,8 @@ describe('spam-suggestions', () => {
 
       expect(result).toEqual({
         from: 'Prize',
+        rawSubject: 'Su\u200Bbject',
+        rawText: 'Bo\u0007dy',
         replyTo: 'c@spam.example',
         senderAddresses: ['p@spam.example'],
         subject: 'Subject',
@@ -420,17 +478,38 @@ describe('spam-suggestions', () => {
       ])
     })
 
-    test('expect a phrase found only past the cut, or only in the raw text, dropped', () => {
-      const text = `${'x '.repeat(6_000)}tail offer`
-      const input = {
-        suggestions: [
-          { kind: 'addBlockPhrase', reason: 'Past the cut', value: 'tail offer' },
-          { kind: 'addBlockPhrase', reason: 'Raw only', value: 'free cruise' },
-        ],
-      }
-      const hidden = { ...email, subject: '', text: `${text} fre\u0007e cruise` }
+    test('expect a phrase found only past the cut dropped', () => {
+      const long = { ...email, subject: '', text: `${'x '.repeat(6_000)}tail offer` }
+      const input = { suggestions: [{ kind: 'addBlockPhrase', reason: 'Past the cut', value: 'tail offer' }] }
 
-      expect(validateSuggestions(input, strictAccount, hidden, ids())).toEqual([])
+      expect(validateSuggestions(input, strictAccount, long, ids())).toEqual([])
+    })
+
+    test('expect a word cut at the subject limit never validated', () => {
+      const long = { ...email, subject: `${'x '.repeat(497)}money`, text: '' }
+      const input = { suggestions: [{ kind: 'addBlockPhrase', reason: 'Cut word', value: 'mone' }] }
+
+      expect(validateSuggestions(input, strictAccount, long, ids())).toEqual([])
+    })
+
+    test.each(['body', 'subject'])('expect a phrase matching the sanitized %s but not the raw one dropped', (field) => {
+      // NFKC runs before format characters are deleted in toWords, but after sanitizing: the two texts differ.
+      const hidden = 'Visit cafe\u200B\u0301 today'
+      const fields =
+        field === 'body'
+          ? { rawText: hidden, subject: '', text: sanitizeEmailText(hidden) }
+          : { rawSubject: hidden, subject: sanitizeEmailText(hidden), text: '' }
+      const input = { suggestions: [{ kind: 'addBlockPhrase', reason: 'Cafe', value: 'caf\u00e9' }] }
+
+      expect(validateSuggestions(input, strictAccount, { ...email, ...fields }, ids())).toEqual([])
+      expect(
+        validateSuggestions(
+          input,
+          strictAccount,
+          { ...email, ...fields, rawSubject: undefined, rawText: undefined },
+          ids(),
+        ),
+      ).toHaveLength(1)
     })
 
     test('expect a removeTrustedSender entry that matches no sender address dropped', () => {
@@ -478,6 +557,33 @@ describe('spam-suggestions', () => {
         "This email's sender is on your trusted list.",
         'A higher setting catches more mail like this.',
       ])
+    })
+
+    test.each([
+      'evil\uFF0Ecom',
+      'evil[.]com',
+      'evil(.)com',
+      'evil\u3002com',
+      'hxxp[:]//evil[.]com',
+      'evil(dot)com',
+      'evil[DOT]com',
+      '\uFF57\uFF57\uFF57\uFF0Eevil',
+      'a\uFF20b',
+      '555/123/4567',
+      '555_123_4567',
+      '\uFF15\uFF15\uFF15\uFF11\uFF12\uFF13\uFF14\uFF15\uFF16\uFF17',
+    ])('expect the obfuscated contact %p in a reason replaced by the fixed reason', (reason) => {
+      const input = { suggestions: [{ kind: 'addBlockPhrase', reason, value: 'free cruise' }] }
+
+      expect(validateSuggestions(input, strictAccount, email, ids())[0].reason).toEqual(
+        'This phrase appears in the email you moved to Spam.',
+      )
+    })
+
+    test.each(['evil dot com', 'evil. com'])('expect the known limit %p left alone', (reason) => {
+      const input = { suggestions: [{ kind: 'addBlockPhrase', reason, value: 'free cruise' }] }
+
+      expect(validateSuggestions(input, strictAccount, email, ids())[0].reason).toEqual(reason)
     })
 
     test('expect a 7 digit reason replaced and a 6 digit one kept, and a domain replaced but "e.g." kept', () => {
