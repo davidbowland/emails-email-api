@@ -9,11 +9,15 @@ import {
   refundSpamSuggestionUsage,
 } from '../../services/dynamodb'
 import { getS3Object } from '../../services/s3'
-import { Account, APIGatewayProxyEventV2, APIGatewayProxyResultV2, EmailContents } from '../../types'
+import { Account, APIGatewayProxyEventV2, APIGatewayProxyResultV2, ParsedMail } from '../../types'
 import { validateUsernameInEvent } from '../../utils/events'
 import { log, logError, logWarn, redactEvent } from '../../utils/logging'
-import { convertParsedContentsToEmail } from '../../utils/parser'
-import { buildSuggestionRequest, extractSuggestionToolInput, validateSuggestions } from '../../utils/spam-suggestions'
+import {
+  buildSuggestionRequest,
+  extractSuggestionToolInput,
+  toSuggestionEmail,
+  validateSuggestions,
+} from '../../utils/spam-suggestions'
 import status from '../../utils/status'
 
 assertRequiredEnv(
@@ -72,27 +76,17 @@ const getAccountAndEmail = async (accountId: string, emailId: string): Promise<A
   }
 }
 
-const getEmailContents = async (accountId: string, emailId: string): Promise<EmailContents | undefined> => {
+// The reported email is the only S3 object this handler reads. The impact check runs in a separate Lambda, so
+// mail read for it can never reach the model.
+const getParsedEmail = async (accountId: string, emailId: string): Promise<ParsedMail | undefined> => {
   try {
     const { body } = await getS3Object(`received/${accountId}/${emailId}`)
-    return convertParsedContentsToEmail(emailId, await simpleParser(body))
+    return await simpleParser(body)
   } catch (error) {
     logError('Unable to read email contents', { accountId, error: errorName(error), messageId: emailId })
     return undefined
   }
 }
-
-// convertParsedContentsToEmail already substitutes empty addresses and an empty body when the email
-// has none, so only the subject can be missing here.
-const toSuggestionEmail = (contents: EmailContents) => ({
-  from: contents.fromAddress.text,
-  replyTo: contents.replyToAddress.value
-    .map(({ address }) => address)
-    .filter(Boolean)
-    .join(', '),
-  subject: contents.subject ?? '',
-  text: contents.bodyText,
-})
 
 // The kill switch is a deliberate operator action, so it is a warning; the other states are routine.
 const logBedrockUnavailable = (accountId: string, emailId: string, error: unknown): void => {
@@ -104,11 +98,11 @@ const logBedrockUnavailable = (accountId: string, emailId: string, error: unknow
 // the caller can refund the count.
 const generateSuggestions = async (account: Account, accountId: string, emailId: string): Promise<HandlerResult> => {
   try {
-    const contents = await getEmailContents(accountId, emailId)
-    if (contents === undefined) {
+    const parsed = await getParsedEmail(accountId, emailId)
+    if (parsed === undefined) {
       return status.INTERNAL_SERVER_ERROR
     }
-    const email = toSuggestionEmail(contents)
+    const email = toSuggestionEmail(parsed)
 
     const command = buildSuggestionRequest(account, email)
     const response = await converse(command).catch((error: unknown) => {
