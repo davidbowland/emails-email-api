@@ -46,9 +46,10 @@ const SENSITIVITY_LABELS: Record<SpamSensitivity, string> = { high: 'High', low:
 
 const WHITESPACE = /\s/u
 
-// Linear scan back from the end for the last whitespace character; 0 when there is none.
-const endOfLastWhitespace = (text: string, index = text.length): number =>
-  index === 0 || WHITESPACE.test(text.charAt(index - 1)) ? index : endOfLastWhitespace(text, index - 1)
+// The index just after the last whitespace character; 0 when there is none. One linear scan, not recursion, so a
+// long final word (such as an inline base64 image) cannot overflow the stack.
+const endOfLastWhitespace = (text: string): number =>
+  text.split('').findLastIndex((character) => WHITESPACE.test(character)) + 1
 
 // Cuts at `limit` characters. When the cut falls inside a word, that partial word is dropped too, so the model
 // is never offered a fragment (such as "mone" from "money") that the inbound filter would not match.

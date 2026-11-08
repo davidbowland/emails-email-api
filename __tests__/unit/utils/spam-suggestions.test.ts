@@ -167,6 +167,22 @@ describe('spam-suggestions', () => {
       expect(body).toEqual('x'.repeat(11_990))
     })
 
+    test('expect a trailing word of more than 10000 characters dropped without overflowing the stack', () => {
+      const body = pickSuggestionBody({ html: false, text: `${'x '.repeat(500)}${'y'.repeat(15_000)}` })
+
+      expect(body).toEqual('x '.repeat(500).trimEnd())
+    })
+
+    test('expect an inline base64 image longer than an HTML tag kept out without overflowing the stack', () => {
+      const html = `<p>Buy now</p><img src="data:image/png;base64,${'Q'.repeat(40_000)}">`
+
+      expect(pickSuggestionBody({ html, text: 'stub' })).toContain('Buy now')
+    })
+
+    test('expect an empty body when 30000 characters have no whitespace', () => {
+      expect(pickSuggestionBody({ html: false, text: 'y'.repeat(30_000) })).toEqual('')
+    })
+
     test('expect a word that ends exactly at the limit kept', () => {
       const body = pickSuggestionBody({ html: false, text: `${'x '.repeat(5_998)}mone y` })
 
