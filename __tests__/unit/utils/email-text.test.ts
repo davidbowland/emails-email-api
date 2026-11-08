@@ -3,11 +3,11 @@ import { sanitizeEmailText } from '@utils/email-text'
 describe('email-text', () => {
   describe('sanitizeEmailText', () => {
     it('should delete a zero-width space', () => {
-      expect(sanitizeEmailText('a​b')).toEqual('ab')
+      expect(sanitizeEmailText('a\u200Bb')).toEqual('ab')
     })
 
     it('should delete a bidi override', () => {
-      expect(sanitizeEmailText('a‮b')).toEqual('ab')
+      expect(sanitizeEmailText('a\u202Eb')).toEqual('ab')
     })
 
     it('should delete a tag character', () => {
