@@ -8,6 +8,7 @@ import {
   APIGatewayProxyResultV2,
   EmailBatch,
   SpamEmailImpactResult,
+  SpamImpactDependencies,
   SpamImpactRequest,
 } from '../types'
 import { validateUsernameInEvent } from '../utils/events'
@@ -65,7 +66,7 @@ const readEmail = async (
   email: EmailBatch,
   phraseWords: string[][],
   timeLeft: () => number,
-  createAbortSignal: (ms: number) => AbortSignal,
+  { createAbortSignal }: SpamImpactDependencies,
 ): Promise<ReadOutcome> => {
   try {
     const abortSignal = createAbortSignal(Math.max(0, Math.min(SPAM_IMPACT_READ_TIMEOUT_MS, timeLeft())))
@@ -94,9 +95,9 @@ const checkImpact = async (
   accountId: string,
   request: SpamImpactRequest,
   requestedAt: number,
-  clock: () => number,
-  createAbortSignal: (ms: number) => AbortSignal,
+  dependencies: SpamImpactDependencies,
 ): Promise<APIGatewayProxyResultV2<any>> => {
+  const { clock, createAbortSignal } = dependencies
   const deadline = requestedAt + SPAM_IMPACT_DEADLINE_MS
   const timeLeft = (): number => deadline - clock()
   const isBeforeDeadline = (): boolean => timeLeft() > 0
@@ -106,7 +107,7 @@ const checkImpact = async (
   const phraseWords = request.phrases.map(toWords)
   const { attempted, notAttempted } = await readInBatches(
     readOrder,
-    (email) => readEmail(accountId, email, phraseWords, timeLeft, createAbortSignal),
+    (email) => readEmail(accountId, email, phraseWords, timeLeft, dependencies),
     isBeforeDeadline,
   )
   const results = attempted.filter((outcome): outcome is SpamEmailImpactResult => outcome.matches !== undefined)
@@ -127,38 +128,36 @@ const checkImpact = async (
   return { ...status.OK, body: JSON.stringify(response) }
 }
 
-// Takes the clock and the abort-signal factory (for the email list and each read) as parameters so tests can inject
-// them. Lambda must not call this directly: it passes the context object as the second argument.
-export const handleSpamImpact = async (
-  event: APIGatewayProxyEventV2,
-  clock: () => number = Date.now,
-  createAbortSignal: (ms: number) => AbortSignal = AbortSignal.timeout,
-): Promise<APIGatewayProxyResultV2<any>> => {
-  log('Received event', redactEvent(event))
-  const accountId = event.pathParameters?.accountId as string
-  try {
-    const requestedAt = clock()
-    if (!validateUsernameInEvent(event, accountId)) {
-      return status.FORBIDDEN
-    }
+// Lambda passes three positional arguments (event, context, callback), so the handler takes only the event and its
+// dependencies come from the factory.
+export const createPostSpamImpactHandler =
+  (dependencies: SpamImpactDependencies) =>
+  async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> => {
+    log('Received event', redactEvent(event))
+    const accountId = event.pathParameters?.accountId as string
+    try {
+      const requestedAt = dependencies.clock()
+      if (!validateUsernameInEvent(event, accountId)) {
+        return status.FORBIDDEN
+      }
 
-    const parsed = parseRequest(event)
-    if ('badRequest' in parsed) {
-      return parsed.badRequest
-    }
+      const parsed = parseRequest(event)
+      if ('badRequest' in parsed) {
+        return parsed.badRequest
+      }
 
-    return await checkImpact(accountId, parsed.request, requestedAt, clock, createAbortSignal)
-  } catch (error) {
-    if (isSpamImpactDeadlineError(error)) {
-      log('Spam impact check ran out of time loading emails', { accountId })
-      return CHECK_TIMEOUT_RESPONSE
+      return await checkImpact(accountId, parsed.request, requestedAt, dependencies)
+    } catch (error) {
+      if (isSpamImpactDeadlineError(error)) {
+        log('Spam impact check ran out of time loading emails', { accountId })
+        return CHECK_TIMEOUT_RESPONSE
+      }
+      logError('Spam impact check failed', { accountId, error: errorName(error) })
+      return status.INTERNAL_SERVER_ERROR
     }
-    logError('Spam impact check failed', { accountId, error: errorName(error) })
-    return status.INTERNAL_SERVER_ERROR
   }
-}
 
-// The Lambda entry point takes only the event, so Lambda's context argument never reaches the clock or the
-// abort-signal factory.
-export const postSpamImpactHandler = (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> =>
-  handleSpamImpact(event)
+export const postSpamImpactHandler = createPostSpamImpactHandler({
+  clock: Date.now,
+  createAbortSignal: (ms) => AbortSignal.timeout(ms),
+})

@@ -210,6 +210,13 @@ export interface SpamImpactResponse {
   phrases: SpamPhraseImpact[] // one per request phrase, same order
 }
 
+// Injected into createPostSpamImpactHandler. createAbortSignal makes the signal that limits the email list's pages
+// and each email read, given the milliseconds allowed.
+export interface SpamImpactDependencies {
+  clock: () => number
+  createAbortSignal: (ms: number) => AbortSignal
+}
+
 // Push
 
 // The push carries facts, not sentences: the service worker assembles the English. These three
