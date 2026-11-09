@@ -7,15 +7,16 @@ import { sanitizeEmailText } from './email-text'
 import { formatSpamFilter } from './events'
 import { createPhraseMatcher, toWords } from './phrase-matching'
 import { matchesSenderRule } from './sender-rules'
-import { htmlToText, MAX_SCORED_TEXT_LENGTH } from './spam-body'
+import { htmlToText, MAX_SCORED_TEXT_LENGTH, SUBJECT_MATCH_LENGTH } from './spam-body'
 
 export interface SuggestionEmail {
   from: string
   replyTo: string
   // Bare addresses from the From header and the Return-Path header, which G4 ties removeTrustedSender to.
   senderAddresses: string[]
-  // The same body and subject before sanitizing, cut the same way. validateSuggestions requires a phrase to match
-  // in both, since the filter reads the raw email. Required, so no caller can skip the raw-text check.
+  // The body and subject before sanitizing, compacting or the model's cut, capped only as the inbound filter caps
+  // them (SUBJECT_MATCH_LENGTH, MAX_SCORED_TEXT_LENGTH). validateSuggestions requires a phrase to match both these and
+  // the model's text, since the filter reads the raw email. Required, so no caller can skip the raw-text check.
   rawSubject: string
   rawText: string
   subject: string
@@ -45,6 +46,21 @@ const SENSITIVITY_LABELS: Record<SpamSensitivity, string> = { high: 'High', low:
 /* Email input */
 
 const WHITESPACE = /\s/u
+const WHITESPACE_RUN = /\s+/u
+// A token holding a run this long of base64 characters is an encoded blob (an inline image, a data: URI, a tracking
+// token), not words. Base64 lines are 76 characters; real words are far shorter.
+const MIN_ENCODED_RUN_LENGTH = 40
+const ENCODED_RUN = new RegExp(`[A-Za-z0-9+/]{${MIN_ENCODED_RUN_LENGTH}}`, 'u')
+
+// Keeps the model's 12,000-character budget for words: every whitespace run becomes one space, and every token that
+// carries an encoded blob is dropped. Run after sanitizeEmailText, which turns control characters into spaces.
+// Dropping a token can make two words adjacent that are not adjacent in the email, which is why validateSuggestions
+// also matches each phrase against the raw text.
+export const compactForModel = (text: string): string =>
+  text
+    .split(WHITESPACE_RUN)
+    .filter((token) => token.length > 0 && !ENCODED_RUN.test(token))
+    .join(' ')
 
 // The index just after the last whitespace character; 0 when there is none. One linear scan, not recursion, so a
 // long final word (such as an inline base64 image) cannot overflow the stack.
@@ -62,8 +78,11 @@ const cutAtWord = (text: string, limit: number): string => {
   return (isInsideWord ? cut.slice(0, endOfLastWhitespace(cut)) : cut).trimEnd()
 }
 
+const toModelText = (text: string, limit: number): string => cutAtWord(compactForModel(sanitizeEmailText(text)), limit)
+
 // The model reads the same text the viewer shows: the HTML-derived text when there is any, since the viewer
-// renders the HTML part first, and otherwise the text part. Each raw part is capped as the inbound filter caps it.
+// renders the HTML part first, and otherwise the text part. Each raw part is capped as the inbound filter caps it,
+// and the raw body is not cut further: compacting lets the model's text reach past the first 12,000 raw characters.
 const pickBodies = (parsed: Pick<ParsedMail, 'html' | 'text'>): { raw: string; sanitized: string } => {
   const htmlText =
     typeof parsed.html === 'string'
@@ -71,7 +90,7 @@ const pickBodies = (parsed: Pick<ParsedMail, 'html' | 'text'>): { raw: string; s
       : ''
   const text = typeof parsed.text === 'string' ? parsed.text.slice(0, MAX_SCORED_TEXT_LENGTH) : ''
   const raw = sanitizeEmailText(htmlText).trim().length > 0 ? htmlText : text
-  return { raw: cutAtWord(raw, MAX_BODY_LENGTH), sanitized: cutAtWord(sanitizeEmailText(raw), MAX_BODY_LENGTH) }
+  return { raw, sanitized: toModelText(raw, MAX_BODY_LENGTH) }
 }
 
 export const pickSuggestionBody = (parsed: Pick<ParsedMail, 'html' | 'text'>): string => pickBodies(parsed).sanitized
@@ -103,30 +122,33 @@ export const toSuggestionEmail = (parsed: ParsedMail): SuggestionEmail => {
   return {
     from: sanitizeEmailText(parsed.from?.text ?? ''),
     replyTo: sanitizeEmailText(toAddresses(replyTo).join(', ')),
-    rawSubject: cutAtWord(parsed.subject ?? '', MAX_HEADER_LENGTH),
+    rawSubject: (parsed.subject ?? '').slice(0, SUBJECT_MATCH_LENGTH),
     rawText: bodies.raw,
     senderAddresses: [
       ...toAddresses(parsed.from as AddressObject | undefined),
       ...returnPaths.flatMap(toAddresses),
     ].map(sanitizeEmailText),
-    subject: cutAtWord(sanitizeEmailText(parsed.subject ?? ''), MAX_HEADER_LENGTH),
+    subject: toModelText(parsed.subject ?? '', MAX_HEADER_LENGTH),
     text: bodies.sanitized,
   }
 }
 
-// The same text everywhere: the prompt and validateSuggestions both see the sanitized, cut fields, so a phrase
-// that passes validation is in the text the model was shown. It must also match the raw text, because toWords
-// normalizes (NFKC) before deleting format characters and sanitizing deletes first, so the two can differ; a phrase
-// matching both matches the raw email in the filter too. The cut never leaves half a word.
+// The same text everywhere: the prompt and validateSuggestions both see the sanitized, compacted, cut fields, so a
+// phrase that passes validation is in the text the model was shown. The cut never leaves half a word.
+// It must also match the raw text, capped only as the inbound filter caps it, for two reasons. toWords normalizes
+// (NFKC) before deleting format characters and sanitizing deletes first, so the two can differ. And compacting drops
+// encoded tokens, which can make two words adjacent that are not adjacent in the email. A phrase matching both
+// matches the raw email in the filter too. The raw text is not cut at 12,000 characters, because compacting lets the
+// model's text reach past that point.
 const toModelFields = (
   email: SuggestionEmail,
 ): Pick<SuggestionEmail, 'from' | 'rawSubject' | 'rawText' | 'replyTo' | 'subject' | 'text'> => ({
   from: sanitizeEmailText(email.from).slice(0, MAX_HEADER_LENGTH),
-  rawSubject: cutAtWord(email.rawSubject, MAX_HEADER_LENGTH),
-  rawText: cutAtWord(email.rawText, MAX_BODY_LENGTH),
+  rawSubject: email.rawSubject.slice(0, SUBJECT_MATCH_LENGTH),
+  rawText: email.rawText.slice(0, MAX_SCORED_TEXT_LENGTH),
   replyTo: sanitizeEmailText(email.replyTo).slice(0, MAX_HEADER_LENGTH),
-  subject: cutAtWord(sanitizeEmailText(email.subject), MAX_HEADER_LENGTH),
-  text: cutAtWord(sanitizeEmailText(email.text), MAX_BODY_LENGTH),
+  subject: toModelText(email.subject, MAX_HEADER_LENGTH),
+  text: toModelText(email.text, MAX_BODY_LENGTH),
 })
 
 /* Prompt */
@@ -386,7 +408,8 @@ export const validateSuggestions = (
   if (!Array.isArray(rawSuggestions)) {
     return []
   }
-  // G3: match against the same sanitized, cut text the model was given.
+  // G3: match against the same sanitized, compacted, cut text the model was given, and against the raw text as the
+  // inbound filter reads it (see toModelFields).
   const fields = toModelFields(email)
   const emailMatchers: EmailMatchers = {
     body: matchesBoth(fields.rawText, fields.text),

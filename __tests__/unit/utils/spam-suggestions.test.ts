@@ -6,6 +6,7 @@ import { Account, ParsedMail } from '@types'
 import { sanitizeEmailText } from '@utils/email-text'
 import {
   buildSuggestionRequest,
+  compactForModel,
   extractSuggestionToolInput,
   pickSuggestionBody,
   SPAM_SUGGESTION_TOOL_NAME,
@@ -131,6 +132,40 @@ describe('spam-suggestions', () => {
     })
   })
 
+  describe('compactForModel', () => {
+    test('expect runs of spaces, tabs and newlines to become one space, with none at either end', () => {
+      expect(compactForModel(' \t Claim  your\t\tprize \n\r\n now \n')).toEqual('Claim your prize now')
+    })
+
+    test('expect a data: URI token dropped', () => {
+      expect(compactForModel(`Buy data:image/png;base64,iVBORw0KGgo${'A'.repeat(60)}= now`)).toEqual('Buy now')
+    })
+
+    test('expect a 76-character base64 line dropped', () => {
+      const line = 'TWFuIGlzIGRpc3Rpbmd1aXNoZWQsIG5vdCBvbmx5IGJ5IGhpcyByZWFzb24sIGJ1dCBieSB0aGlz'
+
+      expect(line).toHaveLength(76)
+      expect(compactForModel(`before\n${line}\nafter`)).toEqual('before after')
+    })
+
+    test('expect a 39-character alphanumeric run kept', () => {
+      const token = 'a1'.repeat(19) + 'b'
+
+      expect(token).toHaveLength(39)
+      expect(compactForModel(`keep ${token} this`)).toEqual(`keep ${token} this`)
+    })
+
+    test('expect ordinary words with punctuation kept', () => {
+      const text = 'Hello, world! It\'s 50% off (today only) at shop.example/deals - reply "YES".'
+
+      expect(compactForModel(text)).toEqual(text)
+    })
+
+    test('expect an empty string for whitespace only', () => {
+      expect(compactForModel(' \n\t ')).toEqual('')
+    })
+  })
+
   describe('pickSuggestionBody', () => {
     test('expect the HTML-derived text when both parts exist', () => {
       expect(pickSuggestionBody({ html: '<p>Win a prize</p>', text: 'stub' }).trim()).toEqual('Win a prize')
@@ -162,13 +197,13 @@ describe('spam-suggestions', () => {
     })
 
     test('expect a long final token dropped without scanning it repeatedly', () => {
-      const body = pickSuggestionBody({ html: false, text: `${'x'.repeat(11_990)} ${'y'.repeat(100)}` })
+      const body = pickSuggestionBody({ html: false, text: `${'x-'.repeat(5_995)} ${'y-'.repeat(50)}` })
 
-      expect(body).toEqual('x'.repeat(11_990))
+      expect(body).toEqual('x-'.repeat(5_995))
     })
 
     test('expect a trailing word of more than 10000 characters dropped without overflowing the stack', () => {
-      const body = pickSuggestionBody({ html: false, text: `${'x '.repeat(500)}${'y'.repeat(15_000)}` })
+      const body = pickSuggestionBody({ html: false, text: `${'x '.repeat(500)}${'y-'.repeat(7_500)}` })
 
       expect(body).toEqual('x '.repeat(500).trimEnd())
     })
@@ -180,7 +215,19 @@ describe('spam-suggestions', () => {
     })
 
     test('expect an empty body when 30000 characters have no whitespace', () => {
-      expect(pickSuggestionBody({ html: false, text: 'y'.repeat(30_000) })).toEqual('')
+      expect(pickSuggestionBody({ html: false, text: 'y-'.repeat(15_000) })).toEqual('')
+    })
+
+    test('expect words after 20000 whitespace characters included', () => {
+      const body = pickSuggestionBody({ html: false, text: `Claim${' \n\t'.repeat(6_667)}your prize` })
+
+      expect(body).toEqual('Claim your prize')
+    })
+
+    test('expect words after a 40000-character base64 blob included', () => {
+      const text = `data:image/png;base64,${'Q'.repeat(40_000)} Buy now`
+
+      expect(pickSuggestionBody({ html: false, text })).toEqual('Buy now')
     })
 
     test('expect a word that ends exactly at the limit kept', () => {
@@ -430,14 +477,14 @@ describe('spam-suggestions', () => {
     })
 
     test('expect a block phrase over 100 characters dropped even when it is in the message', () => {
-      const longPhrase = `free ${'x'.repeat(96)}`
+      const longPhrase = `free ${'abc '.repeat(23)}abcd`
       const input = { suggestions: [{ kind: 'addBlockPhrase', reason: 'Too long', value: longPhrase }] }
 
       expect(validateSuggestions(input, strictAccount, makeEmail({ text: longPhrase }), ids())).toEqual([])
     })
 
     test('expect a block phrase of exactly 100 characters kept', () => {
-      const phrase = `free ${'x'.repeat(95)}`
+      const phrase = `free ${'abc '.repeat(23)}abc`
       const input = { suggestions: [{ kind: 'addBlockPhrase', reason: 'At the limit', value: phrase }] }
 
       expect(validateSuggestions(input, strictAccount, makeEmail({ text: phrase }), ids())).toEqual([
@@ -497,6 +544,25 @@ describe('spam-suggestions', () => {
 
       expect(validateSuggestions(input, strictAccount, email, ids())).toEqual([
         { id: 'id-1', kind: 'addBlockPhrase', reason: 'Prize offer', value: 'free cruise' },
+      ])
+    })
+
+    test('expect a phrase made adjacent only by dropping a base64 token rejected', () => {
+      const text = `Claim ${'Q'.repeat(76)} prize`
+      const blob = makeEmail({ rawText: text, subject: '', text: compactForModel(text) })
+      const input = { suggestions: [{ kind: 'addBlockPhrase', reason: 'Joined', value: 'claim prize' }] }
+
+      expect(compactForModel(text)).toEqual('Claim prize')
+      expect(validateSuggestions(input, strictAccount, blob, ids())).toEqual([])
+    })
+
+    test('expect a phrase past raw character 12000 but inside the compacted 12000 accepted', () => {
+      const text = `${'\n'.repeat(15_000)}Claim your free cruise`
+      const spaced = makeEmail({ rawText: text, subject: '', text: compactForModel(text) })
+      const input = { suggestions: [{ kind: 'addBlockPhrase', reason: 'Late', value: 'free cruise' }] }
+
+      expect(validateSuggestions(input, strictAccount, spaced, ids())).toEqual([
+        { id: 'id-1', kind: 'addBlockPhrase', reason: 'Late', value: 'free cruise' },
       ])
     })
 

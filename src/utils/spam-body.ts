@@ -7,6 +7,9 @@ import type { ParsedMail } from '../types'
 // ReDoS guard: every input is capped before any processing, and every pattern below is fixed with bounded
 // quantifiers only.
 export const MAX_SCORED_TEXT_LENGTH = 65_536
+// The inbound filter (classifyEmail) matches only the first 1,024 characters of a subject. Not part of the inbound
+// copy of these helpers; it lives here so spam-impact.ts and spam-suggestions.ts share it without importing each other.
+export const SUBJECT_MATCH_LENGTH = 1_024
 
 const HTML_TAG = /<[^<>]{0,2048}>/g
 // Opening and closing <script>/<style> tags only; the blocks between them are cut by position, not by a regex

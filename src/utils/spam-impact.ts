@@ -12,7 +12,7 @@ import {
 import { sanitizeEmailText } from './email-text'
 import { isValidBlockPhrase, SPAM_FILTER_MAX_ENTRIES, SPAM_FILTER_MAX_ENTRY_LENGTH } from './events'
 import { createPhraseMatcher, toWords } from './phrase-matching'
-import { getBodyParts } from './spam-body'
+import { getBodyParts, SUBJECT_MATCH_LENGTH } from './spam-body'
 
 // The newest emails checked in each folder. The 4:1 ratio of these caps sets the read order, so a deadline cuts both
 // folders about equally.
@@ -28,8 +28,6 @@ export const SPAM_IMPACT_DEADLINE_MS = 20_000
 export const SPAM_IMPACT_READ_TIMEOUT_MS = 3_000
 export const SPAM_IMPACT_EMAILS_SHOWN = 5
 
-// The inbound filter (classifyEmail) matches only the first 1,024 characters of a subject
-const SUBJECT_MATCH_LENGTH = 1_024
 const SHOWN_TEXT_LENGTH = 200
 const EXCLUDE_EMAIL_ID_MAX_LENGTH = 256
 const INBOX_PER_SPAM = SPAM_IMPACT_INBOX_LIMIT / SPAM_IMPACT_SPAM_LIMIT
