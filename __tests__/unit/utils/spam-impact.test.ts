@@ -1,12 +1,14 @@
 import { simpleParser } from 'mailparser'
 
 import vectors from '../spam-body-vectors.json'
-import { EmailBatch, EmailFolder, ParsedMail } from '@types'
+import { EmailBatch, EmailFolder, ParsedMail, SpamImpactCounts } from '@types'
 import { toWords } from '@utils/phrase-matching'
 import {
   buildImpactResponse,
   countByFolder,
+  countFailedReasons,
   getEmailFolder,
+  isMissingObjectError,
   matchesPhrases,
   parseImpactRequest,
   selectEmailsToCheck,
@@ -17,6 +19,7 @@ import {
   SPAM_IMPACT_INBOX_LIMIT,
   SPAM_IMPACT_READ_TIMEOUT_MS,
   SPAM_IMPACT_SPAM_LIMIT,
+  toLoggableErrorName,
 } from '@utils/spam-impact'
 
 interface RepeatedText {
@@ -271,10 +274,17 @@ describe('spam-impact', () => {
 
   describe('buildImpactResponse', () => {
     const none = { inbox: 0, spam: 0 }
+    const counts = (overrides: Partial<SpamImpactCounts> = {}): SpamImpactCounts => ({
+      failed: none,
+      missing: none,
+      notAttempted: none,
+      totals: none,
+      ...overrides,
+    })
 
     it('should list at most 5 emails newest first and count every match', () => {
       const results = makeEmails('inbox', 7, 'inbox').map((email) => ({ email, matches: [true] }))
-      const response = buildImpactResponse(['free money'], results, { inbox: 7, spam: 0 }, none, none)
+      const response = buildImpactResponse(['free money'], results, counts({ totals: { inbox: 7, spam: 0 } }))
 
       expect(response.phrases[0].inbox.count).toEqual(7)
       expect(response.phrases[0].inbox.emails.map(({ id }) => id)).toEqual([
@@ -297,25 +307,27 @@ describe('spam-impact', () => {
       ]
       const spamEmails = [{ from: 'spam-match@domain.com', id: 'spam-match', subject: 'Subject spam-match' }]
 
-      expect(buildImpactResponse(['free money', 'cruise'], results, { inbox: 2, spam: 1 }, none, none)).toEqual({
-        checked: { inbox: { checked: 2, total: 2 }, spam: { checked: 1, total: 1 } },
-        inboxIncomplete: false,
-        phrases: [
-          {
-            inbox: {
-              count: 1,
-              emails: [{ from: 'inbox-match@domain.com', id: 'inbox-match', subject: 'Subject inbox-match' }],
+      expect(buildImpactResponse(['free money', 'cruise'], results, counts({ totals: { inbox: 2, spam: 1 } }))).toEqual(
+        {
+          checked: { inbox: { checked: 2, total: 2 }, spam: { checked: 1, total: 1 } },
+          inboxIncomplete: false,
+          phrases: [
+            {
+              inbox: {
+                count: 1,
+                emails: [{ from: 'inbox-match@domain.com', id: 'inbox-match', subject: 'Subject inbox-match' }],
+              },
+              phrase: 'free money',
+              spam: { count: 1, emails: spamEmails },
             },
-            phrase: 'free money',
-            spam: { count: 1, emails: spamEmails },
-          },
-          {
-            inbox: { count: 0, emails: [] },
-            phrase: 'cruise',
-            spam: { count: 1, emails: spamEmails },
-          },
-        ],
-      })
+            {
+              inbox: { count: 0, emails: [] },
+              phrase: 'cruise',
+              spam: { count: 1, emails: spamEmails },
+            },
+          ],
+        },
+      )
     })
 
     it('should sanitize subject and from, and cut them to 200 characters', () => {
@@ -323,7 +335,11 @@ describe('spam-impact', () => {
         from: `a\u200Bb\u0007${'f'.repeat(300)}`,
         subject: `\u202Eq\u0000r${'s'.repeat(300)}`,
       })
-      const response = buildImpactResponse(['x'], [{ email, matches: [true] }], { inbox: 1, spam: 0 }, none, none)
+      const response = buildImpactResponse(
+        ['x'],
+        [{ email, matches: [true] }],
+        counts({ totals: { inbox: 1, spam: 0 } }),
+      )
 
       expect(response.phrases[0].inbox.emails).toEqual([
         { from: `ab ${'f'.repeat(197)}`, id: 'long', subject: `q r${'s'.repeat(197)}` },
@@ -335,7 +351,11 @@ describe('spam-impact', () => {
         from: `${'f'.repeat(199)}\u{1F600}g`,
         subject: `${'s'.repeat(198)}\u{1F600}\u{1F601}t`,
       })
-      const response = buildImpactResponse(['x'], [{ email, matches: [true] }], { inbox: 1, spam: 0 }, none, none)
+      const response = buildImpactResponse(
+        ['x'],
+        [{ email, matches: [true] }],
+        counts({ totals: { inbox: 1, spam: 0 } }),
+      )
 
       expect(response.phrases[0].inbox.emails).toEqual([
         { from: `${'f'.repeat(199)}\u{1F600}`, id: 'emoji', subject: `${'s'.repeat(198)}\u{1F600}\u{1F601}` },
@@ -346,13 +366,17 @@ describe('spam-impact', () => {
       const email = makeEmail('blank', 1, 'inbox', { from: undefined, subject: undefined } as unknown as Partial<
         EmailBatch['data']
       >)
-      const response = buildImpactResponse(['x'], [{ email, matches: [true] }], { inbox: 1, spam: 0 }, none, none)
+      const response = buildImpactResponse(
+        ['x'],
+        [{ email, matches: [true] }],
+        counts({ totals: { inbox: 1, spam: 0 } }),
+      )
 
       expect(response.phrases[0].inbox.emails).toEqual([{ from: '', id: 'blank', subject: '' }])
     })
 
     it('should keep the phrases in request order, duplicates included', () => {
-      const response = buildImpactResponse(['b', 'a', 'b'], [], none, none, none)
+      const response = buildImpactResponse(['b', 'a', 'b'], [], counts())
 
       expect(response.phrases.map(({ phrase }) => phrase)).toEqual(['b', 'a', 'b'])
     })
@@ -363,9 +387,9 @@ describe('spam-impact', () => {
       [{ inbox: 0, spam: 1 }, { inbox: 0, spam: 1 }, false],
       [none, none, false],
     ])('should set inboxIncomplete from failed %p and notAttempted %p', (failed, notAttempted, expected) => {
-      expect(buildImpactResponse(['x'], [], { inbox: 5, spam: 5 }, failed, notAttempted).inboxIncomplete).toEqual(
-        expected,
-      )
+      expect(
+        buildImpactResponse(['x'], [], counts({ failed, notAttempted, totals: { inbox: 5, spam: 5 } })).inboxIncomplete,
+      ).toEqual(expected)
     })
 
     it('should count reads attempted minus those that failed as checked', () => {
@@ -374,17 +398,126 @@ describe('spam-impact', () => {
         ...makeEmails('inbox', 3, 'inbox').map((email) => ({ email, matches: [false] })),
         ...makeEmails('spam', 1, 'spam').map((email) => ({ email, matches: [false] })),
       ]
-      const response = buildImpactResponse(['x'], results, { inbox: 9, spam: 4 }, { inbox: 1, spam: 1 }, none)
+      const response = buildImpactResponse(
+        ['x'],
+        results,
+        counts({ failed: { inbox: 1, spam: 1 }, totals: { inbox: 9, spam: 4 } }),
+      )
 
       expect(response.checked).toEqual({ inbox: { checked: 3, total: 9 }, spam: { checked: 1, total: 4 } })
     })
 
+    it('should leave emails with a missing raw file out of the total and the incomplete flag', () => {
+      const results = makeEmails('inbox', 20, 'inbox').map((email) => ({ email, matches: [false] }))
+      const response = buildImpactResponse(
+        ['x'],
+        results,
+        counts({ missing: { inbox: 5, spam: 0 }, totals: { inbox: 25, spam: 0 } }),
+      )
+
+      expect(response.checked.inbox).toEqual({ checked: 20, total: 20 })
+      expect(response.inboxIncomplete).toBe(false)
+    })
+
+    it('should leave missing Spam emails out of the Spam total', () => {
+      const results = makeEmails('spam', 2, 'spam').map((email) => ({ email, matches: [false] }))
+      const response = buildImpactResponse(
+        ['x'],
+        results,
+        counts({ missing: { inbox: 0, spam: 3 }, totals: { inbox: 0, spam: 5 } }),
+      )
+
+      expect(response.checked.spam).toEqual({ checked: 2, total: 2 })
+      expect(response.inboxIncomplete).toBe(false)
+    })
+
+    it('should still mark the Inbox incomplete when missing and failed reads are mixed', () => {
+      const results = makeEmails('inbox', 3, 'inbox').map((email) => ({ email, matches: [false] }))
+      const response = buildImpactResponse(
+        ['x'],
+        results,
+        counts({ failed: { inbox: 1, spam: 0 }, missing: { inbox: 2, spam: 0 }, totals: { inbox: 6, spam: 0 } }),
+      )
+
+      expect(response.checked.inbox).toEqual({ checked: 3, total: 4 })
+      expect(response.inboxIncomplete).toBe(true)
+    })
+
     it('should report an empty folder as zero', () => {
-      expect(buildImpactResponse(['x'], [], none, none, none)).toEqual({
+      expect(buildImpactResponse(['x'], [], counts())).toEqual({
         checked: { inbox: { checked: 0, total: 0 }, spam: { checked: 0, total: 0 } },
         inboxIncomplete: false,
         phrases: [{ inbox: { count: 0, emails: [] }, phrase: 'x', spam: { count: 0, emails: [] } }],
       })
+    })
+  })
+
+  describe('isMissingObjectError', () => {
+    it.each([
+      ['NoSuchKey', { $metadata: { httpStatusCode: 404 }, name: 'NoSuchKey' }],
+      [
+        'NoSuchKey without metadata',
+        Object.assign(new Error('The specified key does not exist.'), { name: 'NoSuchKey' }),
+      ],
+      ['a 404 NotFound', { $metadata: { httpStatusCode: 404 }, name: 'NotFound' }],
+    ])('should treat %s as missing', (_, error) => {
+      expect(isMissingObjectError(error)).toBe(true)
+    })
+
+    it.each([
+      ['AccessDenied', { $metadata: { httpStatusCode: 403 }, name: 'AccessDenied' }],
+      ['NoSuchBucket', { $metadata: { httpStatusCode: 404 }, name: 'NoSuchBucket' }],
+      ['NotFound without a 404', { $metadata: { httpStatusCode: 500 }, name: 'NotFound' }],
+      ['a bare 404 with another name', { $metadata: { httpStatusCode: 404 }, name: 'UnknownError' }],
+      ['a timeout', Object.assign(new Error('aborted'), { name: 'TimeoutError' })],
+      ['undefined', undefined],
+      ['null', null],
+      ['a string', 'NoSuchKey'],
+    ])('should treat %s as a failure', (_, error) => {
+      expect(isMissingObjectError(error)).toBe(false)
+    })
+  })
+
+  describe('toLoggableErrorName', () => {
+    it.each([
+      ['NoSuchKey', { name: 'NoSuchKey' }],
+      ['TimeoutError', Object.assign(new Error('timed out for alice@example.com'), { name: 'TimeoutError' })],
+      ['Error', new Error('bad mime from bob@example.com')],
+      ['A'.repeat(64), { name: 'A'.repeat(64) }],
+    ])('should keep the name %s', (expected, error) => {
+      expect(toLoggableErrorName(error)).toEqual(expected)
+    })
+
+    it.each([
+      ['an address', { name: 'alice@example.com' }],
+      ['spaces', { name: 'Not Found' }],
+      ['a leading digit', { name: '404' }],
+      ['65 characters', { name: 'A'.repeat(65) }],
+      ['an empty name', { name: '' }],
+      ['a non-string name', { name: 404 }],
+      ['a string thrown', 'alice@example.com'],
+      ['undefined', undefined],
+      ['null', null],
+    ])('should give Unknown for %s', (_, error) => {
+      expect(toLoggableErrorName(error)).toEqual('Unknown')
+    })
+  })
+
+  describe('countFailedReasons', () => {
+    it('should count each error name', () => {
+      expect(countFailedReasons(['NoSuchBucket', 'TimeoutError', 'NoSuchBucket', 'TimeoutError', 'Error'])).toEqual({
+        Error: 1,
+        NoSuchBucket: 2,
+        TimeoutError: 2,
+      })
+    })
+
+    it('should give an empty object when nothing failed', () => {
+      expect(countFailedReasons([])).toEqual({})
+    })
+
+    it('should count names that match Object.prototype members as plain names', () => {
+      expect(countFailedReasons(['constructor', 'toString', 'constructor'])).toEqual({ constructor: 2, toString: 1 })
     })
   })
 

@@ -5,6 +5,7 @@ import {
   SpamEmailImpactResult,
   SpamFolderCounts,
   SpamFolderImpact,
+  SpamImpactCounts,
   SpamImpactEmail,
   SpamImpactRequest,
   SpamImpactResponse,
@@ -101,21 +102,21 @@ const toFolderImpact = (results: SpamEmailImpactResult[], phraseIndex: number): 
   }
 }
 
-// results holds only the reads that succeeded, so each folder's checked count is its reads attempted minus failed.
+// results holds only the reads that succeeded, so each folder's checked count is its reads attempted minus those
+// that failed or found no raw file. An email whose raw file is missing has nothing to check: it is left out of the
+// folder's total and never makes the Inbox incomplete. Only failed and not-attempted Inbox reads do.
 export const buildImpactResponse = (
   phrases: string[],
   results: SpamEmailImpactResult[],
-  totals: SpamFolderCounts,
-  failed: SpamFolderCounts,
-  notAttempted: SpamFolderCounts,
+  { failed, missing, notAttempted, totals }: SpamImpactCounts,
 ): SpamImpactResponse => {
   const sorted = [...results].sort((a, b) => compareNewestFirst(a.email, b.email))
   const inbox = sorted.filter(({ email }) => getEmailFolder(email) === 'inbox')
   const spam = sorted.filter(({ email }) => getEmailFolder(email) === 'spam')
   return {
     checked: {
-      inbox: { checked: inbox.length, total: totals.inbox },
-      spam: { checked: spam.length, total: totals.spam },
+      inbox: { checked: inbox.length, total: totals.inbox - missing.inbox },
+      spam: { checked: spam.length, total: totals.spam - missing.spam },
     },
     inboxIncomplete: failed.inbox + notAttempted.inbox > 0,
     phrases: phrases.map((phrase, index) => ({
@@ -125,6 +126,33 @@ export const buildImpactResponse = (
     })),
   }
 }
+
+// A missing raw file: S3 answers NoSuchKey, and the SDK may give a bare 404 as NotFound. Both need s3:ListBucket;
+// without it a missing key is AccessDenied (403), which stays a failure. NoSuchBucket (also 404) is a failure too, so
+// a misconfigured bucket never reads as "nothing to check".
+export const isMissingObjectError = (error: unknown): boolean => {
+  const { $metadata, name } = (error ?? {}) as { $metadata?: { httpStatusCode?: number }; name?: unknown }
+  return name === 'NoSuchKey' || (name === 'NotFound' && $metadata?.httpStatusCode === 404)
+}
+
+// Only an error's name is ever logged, never its message or stack, which can quote a key, an address or the email.
+// A name that is not a plain identifier becomes 'Unknown', so an odd thrown value cannot carry text into the log.
+const LOGGABLE_ERROR_NAME = /^[A-Za-z][A-Za-z0-9]{0,63}$/
+
+export const toLoggableErrorName = (error: unknown): string => {
+  const name = (error as { name?: unknown } | null | undefined)?.name
+  return typeof name === 'string' && LOGGABLE_ERROR_NAME.test(name) ? name : 'Unknown'
+}
+
+// How many failed reads had each error name, such as { NoSuchBucket: 1, TimeoutError: 2 }
+export const countFailedReasons = (errorNames: string[]): Record<string, number> =>
+  errorNames.reduce(
+    (counts: Record<string, number>, name) => ({
+      ...counts,
+      [name]: (Object.hasOwn(counts, name) ? counts[name] : 0) + 1,
+    }),
+    {},
+  )
 
 const parseJsonObject = (body: string | undefined): Record<string, unknown> => {
   try {

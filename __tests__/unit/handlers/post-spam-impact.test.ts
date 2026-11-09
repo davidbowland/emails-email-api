@@ -6,7 +6,7 @@ import * as dynamodb from '@services/dynamodb'
 import * as s3 from '@services/s3'
 import { APIGatewayProxyEventV2, Context, EmailBatch, EmailFolder, ParsedMail } from '@types'
 import * as events from '@utils/events'
-import { log, logError, redactEvent } from '@utils/logging'
+import { log, logError, logWarn, redactEvent } from '@utils/logging'
 import { createSpamImpactDeadlineError } from '@utils/spam-impact-errors'
 import status from '@utils/status'
 
@@ -53,6 +53,17 @@ describe('post-spam-impact', () => {
   const fixedClock = () => jest.fn().mockReturnValue(requestedAt)
   // Never aborts and starts no timer, so no test depends on a real timeout
   const unabortedSignal = () => new AbortController().signal
+  const s3Error = (name: string, httpStatusCode: number, message = 'S3 error') =>
+    Object.assign(new Error(message), { $metadata: { httpStatusCode }, name })
+  // Reads fail with the error given for their key and otherwise succeed, for the next `reads` reads only
+  const failReadsOnce = (errorsByKey: Record<string, Error>, reads = 4): void => {
+    const read = async (key: string): Promise<Buffer> =>
+      Object.hasOwn(errorsByKey, key) ? Promise.reject(errorsByKey[key]) : Buffer.from(key)
+    Array.from({ length: reads }).reduce(
+      (mock: jest.MockedFunction<typeof s3.getS3ObjectStart>) => mock.mockImplementationOnce(read),
+      jest.mocked(s3).getS3ObjectStart,
+    )
+  }
   const createHandler = (clock: () => number, createAbortSignal: (ms: number) => AbortSignal = unabortedSignal) =>
     createPostSpamImpactHandler({ clock, createAbortSignal })
 
@@ -204,8 +215,8 @@ describe('post-spam-impact', () => {
       )
     })
 
-    test('counts an unreadable email as failed', async () => {
-      jest.mocked(s3).getS3ObjectStart.mockRejectedValueOnce(Object.assign(new Error('gone'), { name: 'NoSuchKey' }))
+    test('counts an AccessDenied read as failed, making the check incomplete', async () => {
+      jest.mocked(s3).getS3ObjectStart.mockRejectedValueOnce(s3Error('AccessDenied', 403))
       const result = await createHandler(fixedClock())(event)
       const body = JSON.parse(result.body)
 
@@ -213,6 +224,87 @@ describe('post-spam-impact', () => {
       expect(body.checked).toEqual({ inbox: { checked: 2, total: 3 }, spam: { checked: 1, total: 1 } })
       expect(body.inboxIncomplete).toBe(true)
       expect(logError).not.toHaveBeenCalled()
+    })
+
+    test('leaves an email whose raw file is missing out of the counts, without making the check incomplete', async () => {
+      jest.mocked(s3).getS3ObjectStart.mockRejectedValueOnce(s3Error('NoSuchKey', 404))
+      const result = await createHandler(fixedClock())(event)
+      const body = JSON.parse(result.body)
+
+      expect(result.statusCode).toEqual(200)
+      expect(body.checked).toEqual({ inbox: { checked: 2, total: 2 }, spam: { checked: 1, total: 1 } })
+      expect(body.inboxIncomplete).toBe(false)
+      expect(logError).not.toHaveBeenCalled()
+    })
+
+    test('expect 5 missing Inbox emails and 20 read ones to give 20 of 20 and a complete check', async () => {
+      const inbox = Array.from({ length: 25 }, (_, index) => makeEmail(`staging-${index}`, 1_000 - index, 'inbox'))
+      jest.mocked(dynamodb).getAllReceived.mockResolvedValueOnce(inbox)
+      // The 5 oldest, as on staging, whose DynamoDB records outlived their raw files
+      failReadsOnce(
+        Object.fromEntries(inbox.slice(20).map(({ id }) => [`received/${accountId}/${id}`, s3Error('NoSuchKey', 404)])),
+        25,
+      )
+      const body = JSON.parse((await createHandler(fixedClock())(event)).body)
+
+      expect(body.checked).toEqual({ inbox: { checked: 20, total: 20 }, spam: { checked: 0, total: 0 } })
+      expect(body.inboxIncomplete).toBe(false)
+      expect(log).toHaveBeenCalledWith(
+        'Spam impact check finished',
+        expect.objectContaining({ failed: { inbox: 0, spam: 0 }, failedReasons: {}, missing: { inbox: 5, spam: 0 } }),
+      )
+    })
+
+    test('expect a mix of missing and failed reads to count each, and to make the check incomplete', async () => {
+      failReadsOnce({
+        [`received/${accountId}/inbox-body`]: s3Error('NoSuchKey', 404),
+        [`received/${accountId}/inbox-html`]: s3Error('AccessDenied', 403),
+      })
+      const body = JSON.parse((await createHandler(fixedClock())(event)).body)
+
+      expect(body.checked).toEqual({ inbox: { checked: 1, total: 2 }, spam: { checked: 1, total: 1 } })
+      expect(body.inboxIncomplete).toBe(true)
+      expect(log).toHaveBeenCalledWith(
+        'Spam impact check finished',
+        expect.objectContaining({
+          failed: { inbox: 1, spam: 0 },
+          failedReasons: { AccessDenied: 1 },
+          missing: { inbox: 1, spam: 0 },
+        }),
+      )
+    })
+
+    test('expect a missing Spam email left out of the Spam totals', async () => {
+      failReadsOnce({ [`received/${accountId}/spam-html`]: s3Error('NoSuchKey', 404) })
+      const body = JSON.parse((await createHandler(fixedClock())(event)).body)
+
+      expect(body.checked).toEqual({ inbox: { checked: 3, total: 3 }, spam: { checked: 0, total: 0 } })
+      expect(body.inboxIncomplete).toBe(false)
+      expect(body.phrases[0].spam).toEqual({ count: 0, emails: [] })
+    })
+
+    test('expect failed reads logged by error name only, never with their message text', async () => {
+      failReadsOnce({
+        [`received/${accountId}/inbox-body`]: s3Error('TimeoutError', 0, 'Read of alice@example.com timed out'),
+        [`received/${accountId}/inbox-html`]: s3Error('alice@example.com', 500, 'alice@example.com'),
+      })
+      jest.mocked(mailparser).simpleParser.mockRejectedValueOnce(new Error('Bad header From: alice@example.com'))
+      await createHandler(fixedClock())(event)
+      const logged = JSON.stringify([
+        jest.mocked(log).mock.calls,
+        jest.mocked(logError).mock.calls,
+        jest.mocked(logWarn).mock.calls,
+      ])
+
+      expect(log).toHaveBeenCalledWith(
+        'Spam impact check finished',
+        expect.objectContaining({
+          failed: { inbox: 3, spam: 0 },
+          failedReasons: { Error: 1, TimeoutError: 1, Unknown: 1 },
+          missing: { inbox: 0, spam: 0 },
+        }),
+      )
+      expect(logged).not.toContain('alice@example.com')
     })
 
     test('expect an email that fails to parse to count as failed', async () => {
@@ -260,7 +352,9 @@ describe('post-spam-impact', () => {
         'deadlineReached',
         'durationMs',
         'failed',
+        'failedReasons',
         'inboxChecked',
+        'missing',
         'notAttempted',
         'phraseCount',
         'spamChecked',
@@ -270,7 +364,9 @@ describe('post-spam-impact', () => {
         deadlineReached: false,
         durationMs: 1_500,
         failed: { inbox: 0, spam: 0 },
+        failedReasons: {},
         inboxChecked: 3,
+        missing: { inbox: 0, spam: 0 },
         notAttempted: { inbox: 0, spam: 0 },
         phraseCount: 2,
         spamChecked: 1,

@@ -1178,13 +1178,22 @@ Resources:
         - AWSLambdaBasicExecutionRole
         - DynamoDBReadPolicy:
             TableName: !Ref ReceivedTable
-        # Received emails only, and only GetObject: no listing, and nothing outside received/.
+        # Received emails only: GetObject on nothing outside received/.
         - Version: 2012-10-17
           Statement:
             - Action: ['s3:GetObject']
               Effect: Allow
               Resource: !Sub
                 - 'arn:${AWS::Partition}:s3:::${Bucket}/received/*'
+                - Bucket: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+            # Only so that GetObject on a missing key answers NoSuchKey (404) instead of AccessDenied (403), letting
+            # the check leave out an email whose raw file is gone. It exposes key names, never object content. No
+            # s3:prefix condition: S3 checks this permission in the GetObject request's context, which has no prefix,
+            # so a conditioned grant would never apply and a missing key would still be 403.
+            - Action: ['s3:ListBucket']
+              Effect: Allow
+              Resource: !Sub
+                - 'arn:${AWS::Partition}:s3:::${Bucket}'
                 - Bucket: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
       Environment:
         Variables:

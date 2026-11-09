@@ -200,14 +200,25 @@ export interface SpamPhraseImpact {
 
 export interface SpamCheckedCount {
   checked: number // emails read successfully in time
-  total: number // emails in the folder, not counting excludeEmailId
+  total: number // emails in the folder, not counting excludeEmailId or an email whose raw file is missing
 }
 
 export interface SpamImpactResponse {
   checked: { inbox: SpamCheckedCount; spam: SpamCheckedCount }
-  // true when a read failed or the deadline cut reads short, so inbox.checked < the smaller of inbox.total and 100
+  // true when a read failed or the deadline cut reads short, so inbox.checked < the smaller of inbox.total and 100.
+  // An email whose raw file is missing has nothing to check, so it is left out of total and never sets this.
   inboxIncomplete: boolean
   phrases: SpamPhraseImpact[] // one per request phrase, same order
+}
+
+// Per-folder counts for buildImpactResponse. totals counts every candidate email; missing counts reads that found no
+// raw file, failed counts reads that went wrong (timeouts, parse errors, other S3 errors) and notAttempted counts
+// emails the deadline left unread.
+export interface SpamImpactCounts {
+  failed: SpamFolderCounts
+  missing: SpamFolderCounts
+  notAttempted: SpamFolderCounts
+  totals: SpamFolderCounts
 }
 
 // Injected into createPostSpamImpactHandler. createAbortSignal makes the signal that limits the email list's pages

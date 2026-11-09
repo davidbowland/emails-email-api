@@ -17,6 +17,8 @@ import { toWords } from '../utils/phrase-matching'
 import {
   buildImpactResponse,
   countByFolder,
+  countFailedReasons,
+  isMissingObjectError,
   matchesPhrases,
   parseImpactRequest,
   selectEmailsToCheck,
@@ -24,6 +26,7 @@ import {
   SPAM_IMPACT_CONCURRENCY,
   SPAM_IMPACT_DEADLINE_MS,
   SPAM_IMPACT_READ_TIMEOUT_MS,
+  toLoggableErrorName,
 } from '../utils/spam-impact'
 import { isSpamImpactDeadlineError } from '../utils/spam-impact-errors'
 import status from '../utils/status'
@@ -32,10 +35,12 @@ assertRequiredEnv('DYNAMODB_RECEIVED_TABLE_NAME', 'EMAIL_BUCKET')
 
 const CHECK_TIMEOUT_RESPONSE = { ...status.SERVICE_UNAVAILABLE, body: JSON.stringify({ code: 'CHECK_TIMEOUT' }) }
 
-interface ReadOutcome {
-  email: EmailBatch
-  matches?: boolean[]
-}
+// matched: read and matched against every phrase. missing: the raw file does not exist, so there is nothing to check.
+// failed: anything else went wrong; errorName is safe to log (see toLoggableErrorName).
+type ReadOutcome =
+  | { email: EmailBatch; matches: boolean[]; status: 'matched' }
+  | { email: EmailBatch; status: 'missing' }
+  | { email: EmailBatch; errorName: string; status: 'failed' }
 
 interface ReadProgress {
   attempted: ReadOutcome[]
@@ -59,8 +64,8 @@ const parseRequest = (
   }
 }
 
-// Only the per-phrase booleans are kept; the parsed email is dropped as soon as it has been matched. A failed read or
-// parse is an outcome with no matches, never an exception.
+// Only the per-phrase booleans are kept; the parsed email is dropped as soon as it has been matched. A missing raw
+// file, a failed read or a failed parse is an outcome, never an exception.
 const readEmail = async (
   accountId: string,
   email: EmailBatch,
@@ -71,9 +76,11 @@ const readEmail = async (
   try {
     const abortSignal = createAbortSignal(Math.max(0, Math.min(SPAM_IMPACT_READ_TIMEOUT_MS, timeLeft())))
     const raw = await getS3ObjectStart(`received/${accountId}/${email.id}`, SPAM_IMPACT_BYTE_LIMIT, abortSignal)
-    return { email, matches: matchesPhrases(await simpleParser(raw), phraseWords) }
-  } catch {
-    return { email }
+    return { email, matches: matchesPhrases(await simpleParser(raw), phraseWords), status: 'matched' }
+  } catch (error: unknown) {
+    return isMissingObjectError(error)
+      ? { email, status: 'missing' }
+      : { email, errorName: toLoggableErrorName(error), status: 'failed' }
   }
 }
 
@@ -110,17 +117,29 @@ const checkImpact = async (
     (email) => readEmail(accountId, email, phraseWords, timeLeft, dependencies),
     isBeforeDeadline,
   )
-  const results = attempted.filter((outcome): outcome is SpamEmailImpactResult => outcome.matches !== undefined)
-  const failed = countByFolder(attempted.filter(({ matches }) => matches === undefined).map(({ email }) => email))
+  const results: SpamEmailImpactResult[] = attempted.flatMap((outcome) =>
+    outcome.status === 'matched' ? [{ email: outcome.email, matches: outcome.matches }] : [],
+  )
+  const failedReads = attempted.flatMap((outcome) => (outcome.status === 'failed' ? [outcome] : []))
+  const failed = countByFolder(failedReads.map(({ email }) => email))
+  const missing = countByFolder(attempted.filter((outcome) => outcome.status === 'missing').map(({ email }) => email))
   const notAttemptedCounts = countByFolder(notAttempted)
 
-  const response = buildImpactResponse(request.phrases, results, totals, failed, notAttemptedCounts)
+  const response = buildImpactResponse(request.phrases, results, {
+    failed,
+    missing,
+    notAttempted: notAttemptedCounts,
+    totals,
+  })
+  // Counts and error names only: never a key, an email id, a subject, a phrase or an error message.
   log('Spam impact check finished', {
     accountId,
     deadlineReached: notAttempted.length > 0,
     durationMs: clock() - requestedAt,
     failed,
+    failedReasons: countFailedReasons(failedReads.map(({ errorName }) => errorName)),
     inboxChecked: response.checked.inbox.checked,
+    missing,
     notAttempted: notAttemptedCounts,
     phraseCount: request.phrases.length,
     spamChecked: response.checked.spam.checked,
