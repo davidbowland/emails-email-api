@@ -599,12 +599,6 @@ describe('dynamodb', () => {
         await expect(pending).rejects.toMatchObject(deadlineError)
       })
 
-      test('expect the default time limit to end a slow page', async () => {
-        mockSend.mockImplementationOnce(hangUntilAborted)
-
-        await expect(getAllReceived(accountId, () => 1)).rejects.toMatchObject(deadlineError)
-      })
-
       test('expect an empty list when a page has no Items', async () => {
         mockSend.mockResolvedValueOnce({})
 

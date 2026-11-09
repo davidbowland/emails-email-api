@@ -263,7 +263,7 @@ const getReceivedPages = async (
 export const getAllReceived = async (
   account: string,
   timeLeft: () => number,
-  createAbortSignal: (ms: number) => AbortSignal = AbortSignal.timeout,
+  createAbortSignal: (ms: number) => AbortSignal,
 ): Promise<EmailBatch[]> => getReceivedPages(account, timeLeft, createAbortSignal)
 
 export const setReceivedById = async (account: string, id: string, data: Email): Promise<PutItemOutput> => {

@@ -65,9 +65,10 @@ const readEmail = async (
   email: EmailBatch,
   phraseWords: string[][],
   timeLeft: () => number,
+  createAbortSignal: (ms: number) => AbortSignal,
 ): Promise<ReadOutcome> => {
   try {
-    const abortSignal = AbortSignal.timeout(Math.max(0, Math.min(SPAM_IMPACT_READ_TIMEOUT_MS, timeLeft())))
+    const abortSignal = createAbortSignal(Math.max(0, Math.min(SPAM_IMPACT_READ_TIMEOUT_MS, timeLeft())))
     const raw = await getS3ObjectStart(`received/${accountId}/${email.id}`, SPAM_IMPACT_BYTE_LIMIT, abortSignal)
     return { email, matches: matchesPhrases(await simpleParser(raw), phraseWords) }
   } catch {
@@ -94,17 +95,18 @@ const checkImpact = async (
   request: SpamImpactRequest,
   requestedAt: number,
   clock: () => number,
+  createAbortSignal: (ms: number) => AbortSignal,
 ): Promise<APIGatewayProxyResultV2<any>> => {
   const deadline = requestedAt + SPAM_IMPACT_DEADLINE_MS
   const timeLeft = (): number => deadline - clock()
   const isBeforeDeadline = (): boolean => timeLeft() > 0
-  const emails = await getAllReceived(accountId, timeLeft)
+  const emails = await getAllReceived(accountId, timeLeft, createAbortSignal)
   const { readOrder, totals } = selectEmailsToCheck(emails, request.excludeEmailId)
 
   const phraseWords = request.phrases.map(toWords)
   const { attempted, notAttempted } = await readInBatches(
     readOrder,
-    (email) => readEmail(accountId, email, phraseWords, timeLeft),
+    (email) => readEmail(accountId, email, phraseWords, timeLeft, createAbortSignal),
     isBeforeDeadline,
   )
   const results = attempted.filter((outcome): outcome is SpamEmailImpactResult => outcome.matches !== undefined)
@@ -125,11 +127,12 @@ const checkImpact = async (
   return { ...status.OK, body: JSON.stringify(response) }
 }
 
-// Takes the clock as a parameter so tests can inject one. Lambda must not call this directly: it passes the
-// context object as the second argument.
+// Takes the clock and the abort-signal factory (for the email list and each read) as parameters so tests can inject
+// them. Lambda must not call this directly: it passes the context object as the second argument.
 export const handleSpamImpact = async (
   event: APIGatewayProxyEventV2,
   clock: () => number = Date.now,
+  createAbortSignal: (ms: number) => AbortSignal = AbortSignal.timeout,
 ): Promise<APIGatewayProxyResultV2<any>> => {
   log('Received event', redactEvent(event))
   const accountId = event.pathParameters?.accountId as string
@@ -144,7 +147,7 @@ export const handleSpamImpact = async (
       return parsed.badRequest
     }
 
-    return await checkImpact(accountId, parsed.request, requestedAt, clock)
+    return await checkImpact(accountId, parsed.request, requestedAt, clock, createAbortSignal)
   } catch (error) {
     if (isSpamImpactDeadlineError(error)) {
       log('Spam impact check ran out of time loading emails', { accountId })
@@ -155,6 +158,7 @@ export const handleSpamImpact = async (
   }
 }
 
-// The Lambda entry point takes only the event, so Lambda's context argument never reaches the clock.
+// The Lambda entry point takes only the event, so Lambda's context argument never reaches the clock or the
+// abort-signal factory.
 export const postSpamImpactHandler = (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2<any>> =>
   handleSpamImpact(event)

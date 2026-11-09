@@ -51,6 +51,8 @@ describe('post-spam-impact', () => {
   const parseByKey = (async (body: Buffer) =>
     (parsedByKey[body.toString()] ?? { subject: 'Hello', text: 'safe' }) as ParsedMail) as any
   const fixedClock = () => jest.fn().mockReturnValue(requestedAt)
+  // Never aborts and starts no timer, so no test depends on a real timeout
+  const unabortedSignal = () => new AbortController().signal
 
   beforeAll(() => {
     jest.mocked(dynamodb).getAllReceived.mockResolvedValue(emails)
@@ -63,7 +65,7 @@ describe('post-spam-impact', () => {
   describe('handleSpamImpact', () => {
     test("expect FORBIDDEN when user name doesn't match", async () => {
       jest.mocked(events).validateUsernameInEvent.mockReturnValueOnce(false)
-      const result = await handleSpamImpact(event, fixedClock())
+      const result = await handleSpamImpact(event, fixedClock(), unabortedSignal)
 
       expect(result).toEqual(status.FORBIDDEN)
       expect(dynamodb.getAllReceived).not.toHaveBeenCalled()
@@ -75,7 +77,7 @@ describe('post-spam-impact', () => {
       ['no phrases', JSON.stringify({ phrases: [] })],
       ['a phrase with no letter or digit', JSON.stringify({ phrases: ['!!!'] })],
     ])('expect BAD_REQUEST for %s', async (_, body) => {
-      const result = await handleSpamImpact({ ...event, body }, fixedClock())
+      const result = await handleSpamImpact({ ...event, body }, fixedClock(), unabortedSignal)
 
       expect(result).toEqual(expect.objectContaining({ statusCode: 400 }))
       expect(JSON.parse(result.body).message).toEqual(expect.any(String))
@@ -83,7 +85,7 @@ describe('post-spam-impact', () => {
     })
 
     test('expect OK with every phrase checked against the newest emails', async () => {
-      const result = await handleSpamImpact(event, fixedClock())
+      const result = await handleSpamImpact(event, fixedClock(), unabortedSignal)
 
       expect(result.statusCode).toEqual(200)
       expect(JSON.parse(result.body)).toEqual({
@@ -114,7 +116,7 @@ describe('post-spam-impact', () => {
     })
 
     test('expect each read to request the first 256 KB with an abort signal, and never the excluded email', async () => {
-      await handleSpamImpact(event, fixedClock())
+      await handleSpamImpact(event, fixedClock(), unabortedSignal)
 
       expect(jest.mocked(s3).getS3ObjectStart.mock.calls.map(([key]) => key)).toEqual([
         `received/${accountId}/inbox-body`,
@@ -127,18 +129,51 @@ describe('post-spam-impact', () => {
 
     test('expect getAllReceived to be given the time left before the deadline', async () => {
       const clock = fixedClock()
-      await handleSpamImpact(event, clock)
+      await handleSpamImpact(event, clock, unabortedSignal)
       const timeLeft = jest.mocked(dynamodb).getAllReceived.mock.calls[0][1]
 
-      expect(dynamodb.getAllReceived).toHaveBeenCalledWith(accountId, expect.any(Function))
+      expect(dynamodb.getAllReceived).toHaveBeenCalledWith(accountId, expect.any(Function), unabortedSignal)
       expect(timeLeft()).toEqual(20_000)
       clock.mockReturnValue(requestedAt + 20_000)
       expect(timeLeft()).toEqual(0)
     })
 
+    test('expect each read to get a 3000 ms signal when plenty of time is left, and that signal to reach S3', async () => {
+      const signal = new AbortController().signal
+      const createAbortSignal = jest.fn().mockReturnValue(signal)
+      await handleSpamImpact(event, fixedClock(), createAbortSignal)
+
+      expect(createAbortSignal).toHaveBeenCalledTimes(4)
+      expect(createAbortSignal).toHaveBeenCalledWith(3_000)
+      expect(createAbortSignal.mock.calls.every(([ms]) => ms === 3_000)).toBe(true)
+      expect(s3.getS3ObjectStart).toHaveBeenCalledTimes(4)
+      expect(jest.mocked(s3).getS3ObjectStart.mock.calls.every(([, , abortSignal]) => abortSignal === signal)).toBe(
+        true,
+      )
+    })
+
+    test('expect a read to get a signal for the time left when less than 3 seconds remain', async () => {
+      const createAbortSignal = jest.fn(unabortedSignal)
+      const clock = jest
+        .fn()
+        .mockReturnValue(requestedAt + 18_500)
+        .mockReturnValueOnce(requestedAt)
+      await handleSpamImpact(event, clock, createAbortSignal)
+
+      expect(createAbortSignal).toHaveBeenCalledWith(1_500)
+      expect(createAbortSignal).not.toHaveBeenCalledWith(3_000)
+    })
+
+    test('expect getAllReceived to be given the same abort-signal factory', async () => {
+      const createAbortSignal = jest.fn(unabortedSignal)
+      await handleSpamImpact(event, fixedClock(), createAbortSignal)
+
+      expect(dynamodb.getAllReceived).toHaveBeenCalledWith(accountId, expect.any(Function), createAbortSignal)
+    })
+
     test('expect a base64-encoded body to be decoded', async () => {
       const body = Buffer.from(JSON.stringify({ phrases: ['free money'] })).toString('base64')
-      const result = await handleSpamImpact({ ...event, body, isBase64Encoded: true }, fixedClock())
+      const result = await handleSpamImpact({ ...event, body, isBase64Encoded: true }, fixedClock(), unabortedSignal)
 
       expect(result.statusCode).toEqual(200)
       expect(JSON.parse(result.body).phrases.map(({ phrase }) => phrase)).toEqual(['free money'])
@@ -153,7 +188,7 @@ describe('post-spam-impact', () => {
         clock.mockReturnValue(requestedAt + 20_001)
         return Buffer.from(key)
       })
-      const result = await handleSpamImpact(event, clock)
+      const result = await handleSpamImpact(event, clock, unabortedSignal)
       const body = JSON.parse(result.body)
 
       expect(result.statusCode).toEqual(200)
@@ -169,7 +204,7 @@ describe('post-spam-impact', () => {
 
     test('counts an unreadable email as failed', async () => {
       jest.mocked(s3).getS3ObjectStart.mockRejectedValueOnce(Object.assign(new Error('gone'), { name: 'NoSuchKey' }))
-      const result = await handleSpamImpact(event, fixedClock())
+      const result = await handleSpamImpact(event, fixedClock(), unabortedSignal)
       const body = JSON.parse(result.body)
 
       expect(result.statusCode).toEqual(200)
@@ -180,7 +215,7 @@ describe('post-spam-impact', () => {
 
     test('expect an email that fails to parse to count as failed', async () => {
       jest.mocked(mailparser).simpleParser.mockRejectedValueOnce(new Error('bad mime'))
-      const result = await handleSpamImpact(event, fixedClock())
+      const result = await handleSpamImpact(event, fixedClock(), unabortedSignal)
 
       expect(result.statusCode).toEqual(200)
       expect(JSON.parse(result.body).checked.inbox).toEqual({ checked: 2, total: 3 })
@@ -188,7 +223,7 @@ describe('post-spam-impact', () => {
 
     test('expect SERVICE_UNAVAILABLE with CHECK_TIMEOUT when the list cannot load in time', async () => {
       jest.mocked(dynamodb).getAllReceived.mockRejectedValueOnce(createSpamImpactDeadlineError())
-      const result = await handleSpamImpact(event, fixedClock())
+      const result = await handleSpamImpact(event, fixedClock(), unabortedSignal)
 
       expect(result).toEqual({ body: JSON.stringify({ code: 'CHECK_TIMEOUT' }), statusCode: 503 })
       expect(logError).not.toHaveBeenCalled()
@@ -201,7 +236,7 @@ describe('post-spam-impact', () => {
         .getAllReceived.mockRejectedValueOnce(
           Object.assign(new Error('Rate exceeded'), { name: 'ProvisionedThroughputExceededException' }),
         )
-      const result = await handleSpamImpact(event, fixedClock())
+      const result = await handleSpamImpact(event, fixedClock(), unabortedSignal)
 
       expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
       expect(logError).toHaveBeenCalledWith('Spam impact check failed', {
@@ -215,7 +250,7 @@ describe('post-spam-impact', () => {
         .fn()
         .mockReturnValue(requestedAt + 1_500)
         .mockReturnValueOnce(requestedAt)
-      await handleSpamImpact(event, clock)
+      await handleSpamImpact(event, clock, unabortedSignal)
       const [, details] = jest.mocked(log).mock.calls.find(([message]) => message === 'Spam impact check finished')!
 
       expect(Object.keys(details as object).sort()).toEqual([
@@ -241,7 +276,7 @@ describe('post-spam-impact', () => {
     })
 
     test('expect the event to be logged redacted', async () => {
-      await handleSpamImpact(event, fixedClock())
+      await handleSpamImpact(event, fixedClock(), unabortedSignal)
 
       expect(redactEvent).toHaveBeenCalledWith(event)
       expect(log).toHaveBeenCalledWith('Received event', { redacted: true })
