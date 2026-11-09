@@ -47,9 +47,6 @@ interface ReadProgress {
   notAttempted: EmailBatch[]
 }
 
-// Errors are logged by name only: SDK and parser messages can quote the request or the email.
-const errorName = (error: unknown): string | undefined => (error as Error)?.name
-
 const getRequestBody = (event: APIGatewayProxyEventV2): string | undefined =>
   event.isBase64Encoded && event.body ? Buffer.from(event.body, 'base64').toString('utf8') : event.body
 
@@ -171,7 +168,8 @@ export const createPostSpamImpactHandler =
         log('Spam impact check ran out of time loading emails', { accountId })
         return CHECK_TIMEOUT_RESPONSE
       }
-      logError('Spam impact check failed', { accountId, error: errorName(error) })
+      // By name only, with the same check as failedReasons: SDK and parser messages can quote the request
+      logError('Spam impact check failed', { accountId, error: toLoggableErrorName(error) })
       return status.INTERNAL_SERVER_ERROR
     }
   }

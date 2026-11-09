@@ -55,14 +55,22 @@ describe('post-spam-impact', () => {
   const unabortedSignal = () => new AbortController().signal
   const s3Error = (name: string, httpStatusCode: number, message = 'S3 error') =>
     Object.assign(new Error(message), { $metadata: { httpStatusCode }, name })
-  // Reads fail with the error given for their key and otherwise succeed, for the next `reads` reads only
-  const failReadsOnce = (errorsByKey: Record<string, Error>, reads = 4): void => {
-    const read = async (key: string): Promise<Buffer> =>
-      Object.hasOwn(errorsByKey, key) ? Promise.reject(errorsByKey[key]) : Buffer.from(key)
-    Array.from({ length: reads }).reduce(
-      (mock: jest.MockedFunction<typeof s3.getS3ObjectStart>) => mock.mockImplementationOnce(read),
-      jest.mocked(s3).getS3ObjectStart,
-    )
+  // A read of an email in errorsById fails with that error; every other read returns its S3 key as the raw email
+  const readWithErrors =
+    (errorsById: Record<string, Error>) =>
+    async (key: string): Promise<Buffer> => {
+      const id = key.slice(`received/${accountId}/`.length)
+      return Object.hasOwn(errorsById, id) ? Promise.reject(errorsById[id]) : Buffer.from(key)
+    }
+  // Installs one keyed read implementation for a single handler run, whatever its read count, and puts the default
+  // back afterwards, even if the run throws, so no failure reaches the next test.
+  const runWithReadErrors = async (errorsById: Record<string, Error>) => {
+    jest.mocked(s3).getS3ObjectStart.mockImplementation(readWithErrors(errorsById))
+    try {
+      return await createHandler(fixedClock())(event)
+    } finally {
+      jest.mocked(s3).getS3ObjectStart.mockImplementation(readWithErrors({}))
+    }
   }
   const createHandler = (clock: () => number, createAbortSignal: (ms: number) => AbortSignal = unabortedSignal) =>
     createPostSpamImpactHandler({ clock, createAbortSignal })
@@ -70,7 +78,7 @@ describe('post-spam-impact', () => {
   beforeAll(() => {
     jest.mocked(dynamodb).getAllReceived.mockResolvedValue(emails)
     jest.mocked(events).validateUsernameInEvent.mockReturnValue(true)
-    jest.mocked(s3).getS3ObjectStart.mockImplementation(async (key) => Buffer.from(key))
+    jest.mocked(s3).getS3ObjectStart.mockImplementation(readWithErrors({}))
     jest.mocked(mailparser).simpleParser.mockImplementation(parseByKey)
     jest.mocked(redactEvent).mockReturnValue({ redacted: true })
   })
@@ -241,11 +249,10 @@ describe('post-spam-impact', () => {
       const inbox = Array.from({ length: 25 }, (_, index) => makeEmail(`staging-${index}`, 1_000 - index, 'inbox'))
       jest.mocked(dynamodb).getAllReceived.mockResolvedValueOnce(inbox)
       // The 5 oldest, as on staging, whose DynamoDB records outlived their raw files
-      failReadsOnce(
-        Object.fromEntries(inbox.slice(20).map(({ id }) => [`received/${accountId}/${id}`, s3Error('NoSuchKey', 404)])),
-        25,
+      const result = await runWithReadErrors(
+        Object.fromEntries(inbox.slice(20).map(({ id }) => [id, s3Error('NoSuchKey', 404)])),
       )
-      const body = JSON.parse((await createHandler(fixedClock())(event)).body)
+      const body = JSON.parse(result.body)
 
       expect(body.checked).toEqual({ inbox: { checked: 20, total: 20 }, spam: { checked: 0, total: 0 } })
       expect(body.inboxIncomplete).toBe(false)
@@ -256,11 +263,11 @@ describe('post-spam-impact', () => {
     })
 
     test('expect a mix of missing and failed reads to count each, and to make the check incomplete', async () => {
-      failReadsOnce({
-        [`received/${accountId}/inbox-body`]: s3Error('NoSuchKey', 404),
-        [`received/${accountId}/inbox-html`]: s3Error('AccessDenied', 403),
+      const result = await runWithReadErrors({
+        'inbox-body': s3Error('NoSuchKey', 404),
+        'inbox-html': s3Error('AccessDenied', 403),
       })
-      const body = JSON.parse((await createHandler(fixedClock())(event)).body)
+      const body = JSON.parse(result.body)
 
       expect(body.checked).toEqual({ inbox: { checked: 1, total: 2 }, spam: { checked: 1, total: 1 } })
       expect(body.inboxIncomplete).toBe(true)
@@ -275,8 +282,8 @@ describe('post-spam-impact', () => {
     })
 
     test('expect a missing Spam email left out of the Spam totals', async () => {
-      failReadsOnce({ [`received/${accountId}/spam-html`]: s3Error('NoSuchKey', 404) })
-      const body = JSON.parse((await createHandler(fixedClock())(event)).body)
+      const result = await runWithReadErrors({ 'spam-html': s3Error('NoSuchKey', 404) })
+      const body = JSON.parse(result.body)
 
       expect(body.checked).toEqual({ inbox: { checked: 3, total: 3 }, spam: { checked: 0, total: 0 } })
       expect(body.inboxIncomplete).toBe(false)
@@ -284,12 +291,11 @@ describe('post-spam-impact', () => {
     })
 
     test('expect failed reads logged by error name only, never with their message text', async () => {
-      failReadsOnce({
-        [`received/${accountId}/inbox-body`]: s3Error('TimeoutError', 0, 'Read of alice@example.com timed out'),
-        [`received/${accountId}/inbox-html`]: s3Error('alice@example.com', 500, 'alice@example.com'),
-      })
       jest.mocked(mailparser).simpleParser.mockRejectedValueOnce(new Error('Bad header From: alice@example.com'))
-      await createHandler(fixedClock())(event)
+      await runWithReadErrors({
+        'inbox-body': s3Error('TimeoutError', 0, 'Read of alice@example.com timed out'),
+        'inbox-html': s3Error('alice@example.com', 500, 'alice@example.com'),
+      })
       const logged = JSON.stringify([
         jest.mocked(log).mock.calls,
         jest.mocked(logError).mock.calls,
@@ -337,6 +343,24 @@ describe('post-spam-impact', () => {
         accountId,
         error: 'ProvisionedThroughputExceededException',
       })
+    })
+
+    test('expect an error name that is not a plain identifier logged as Unknown on INTERNAL_SERVER_ERROR', async () => {
+      jest
+        .mocked(dynamodb)
+        .getAllReceived.mockRejectedValueOnce(
+          Object.assign(new Error('Failed for alice@example.com'), { name: 'alice@example.com' }),
+        )
+      const result = await createHandler(fixedClock())(event)
+      const logged = JSON.stringify([
+        jest.mocked(log).mock.calls,
+        jest.mocked(logError).mock.calls,
+        jest.mocked(logWarn).mock.calls,
+      ])
+
+      expect(result).toEqual(status.INTERNAL_SERVER_ERROR)
+      expect(logError).toHaveBeenCalledWith('Spam impact check failed', { accountId, error: 'Unknown' })
+      expect(logged).not.toContain('alice@example.com')
     })
 
     test('expect the finish log to hold counts only', async () => {
