@@ -36,6 +36,7 @@ import {
   formatEmailOutbound,
   formatPushSubscription,
   formatSpamFilter,
+  isValidBlockPhrase,
   validateUsernameInEvent,
 } from '@utils/events'
 
@@ -133,6 +134,16 @@ describe('events', () => {
   })
 
   describe('spam filter', () => {
+    describe('isValidBlockPhrase', () => {
+      it.each(['free money', 'a', 'a'.repeat(100), '１２３', 'ｆｒｅｅ'])('should accept %s', (entry) => {
+        expect(isValidBlockPhrase(entry)).toEqual(true)
+      })
+
+      it.each(['!!!', '', '   ', 'a'.repeat(101), 42, null, undefined, ['free money']])('should reject %p', (entry) => {
+        expect(isValidBlockPhrase(entry)).toEqual(false)
+      })
+    })
+
     describe('formatSpamFilter', () => {
       const spamFilter: SpamFilter = { blockPhrases: [], sensitivity: 'medium', trustedSenders: [] }
       const hundredEntries = Array.from({ length: 100 }, (_, index) => `phrase ${index}`)

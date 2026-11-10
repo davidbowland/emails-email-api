@@ -1084,8 +1084,14 @@ Resources:
             TableName: !Ref ReceivedTable
         - DynamoDBCrudPolicy:
             TableName: !Ref SpamSuggestionUsageTable
-        - S3ReadPolicy:
-            BucketName: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+        # Received emails only, and only GetObject: no listing, and nothing outside received/.
+        - Version: 2012-10-17
+          Statement:
+            - Action: ['s3:GetObject']
+              Effect: Allow
+              Resource: !Sub
+                - 'arn:${AWS::Partition}:s3:::${Bucket}/received/*'
+                - Bucket: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
         - Version: 2012-10-17
           Statement:
             # Every foundation model and this account's inference profiles, not one model ARN, so the
@@ -1157,6 +1163,92 @@ Resources:
         - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
       FilterPattern: '[timestamp, uuid, level="ERROR", message]'
       LogGroupName: !Ref PostSpamSuggestionsLogGroup
+
+  PostSpamImpactFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/post-spam-impact.postSpamImpactHandler
+      Runtime: nodejs24.x
+      Architectures:
+        - x86_64
+      MemorySize: 1024
+      Description: emails-email-api check block phrases against recent received emails
+      # No Bedrock permission, and none may be added: mail read here must never reach a model.
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBReadPolicy:
+            TableName: !Ref ReceivedTable
+        # Received emails only: GetObject on nothing outside received/.
+        - Version: 2012-10-17
+          Statement:
+            - Action: ['s3:GetObject']
+              Effect: Allow
+              Resource: !Sub
+                - 'arn:${AWS::Partition}:s3:::${Bucket}/received/*'
+                - Bucket: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+            # Only so that GetObject on a missing key answers NoSuchKey (404) instead of AccessDenied (403), letting
+            # the check leave out an email whose raw file is gone. It exposes key names, never object content. No
+            # s3:prefix condition: S3 checks this permission in the GetObject request's context, which has no prefix,
+            # so a conditioned grant would never apply and a missing key would still be 403.
+            - Action: ['s3:ListBucket']
+              Effect: Allow
+              Resource: !Sub
+                - 'arn:${AWS::Partition}:s3:::${Bucket}'
+                - Bucket: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+      Environment:
+        Variables:
+          DYNAMODB_RECEIVED_TABLE_NAME: !Ref ReceivedTable
+          EMAIL_BUCKET: !FindInMap [EnvironmentMap, !Ref Environment, bucket]
+      Events:
+        # Http only, never ApiKey: validateUsernameInEvent skips the ownership check on the internal
+        # domain, and nothing internal needs the check.
+        Http:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /accounts/{accountId}/spam-impact
+            Method: post
+            # Each call makes up to 125 S3 reads.
+            RouteSettings:
+              ThrottlingBurstLimit: 5
+              ThrottlingRateLimit: 1
+      Tags:
+        'created-by': 'emails-email-api'
+        'created-for': 'emails'
+        'environment': !Ref Environment
+      # Under the HttpApi's 30-second integration limit. Reads stop starting at 20 seconds
+      # (SPAM_IMPACT_DEADLINE_MS), leaving the rest for the last batch and the response.
+      Timeout: 29
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: node24
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/post-spam-impact.ts
+
+  PostSpamImpactLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PostSpamImpactFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: 'created-by'
+          Value: 'emails-email-api'
+        - Key: 'created-for'
+          Value: 'emails'
+        - Key: 'environment'
+          Value: !Ref Environment
+
+  PostSpamImpactLogGroupSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !Sub
+        - 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Function}'
+        - Function: !FindInMap [EnvironmentMap, !Ref Environment, logStreamFunction]
+      FilterPattern: '[timestamp, uuid, level="ERROR", message]'
+      LogGroupName: !Ref PostSpamImpactLogGroup
 
   ## Received attachments
 

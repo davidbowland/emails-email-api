@@ -8,10 +8,7 @@ const HOURS_IN_MS = 60 * 60 * 1000
 describe('email', () => {
   describe('canEmailBeBounced', () => {
     const fixedNow = 1640995200000
-
-    beforeAll(() => {
-      Date.now = jest.fn().mockReturnValue(fixedNow)
-    })
+    const now = () => fixedNow
 
     it('should return true when email timestamp is within 24 hours', () => {
       const recentTimestamp = fixedNow - 23 * HOURS_IN_MS
@@ -23,7 +20,7 @@ describe('email', () => {
         viewed: false,
       }
 
-      const result = canEmailBeBounced(email)
+      const result = canEmailBeBounced(email, now)
 
       expect(result).toBe(true)
     })
@@ -38,7 +35,7 @@ describe('email', () => {
         viewed: false,
       }
 
-      const result = canEmailBeBounced(email)
+      const result = canEmailBeBounced(email, now)
 
       expect(result).toBe(false)
     })

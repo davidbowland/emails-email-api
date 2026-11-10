@@ -100,10 +100,52 @@ Infrastructure specific to this API lives in this repo's `template.yaml`. Infras
 | 500    | Any other failure                                                        |
 | 503    | Bedrock is denied (kill switch), throttling, unavailable or timed out    |
 
-- **Stricter only.** The only kinds are `addBlockPhrase`, `removeTrustedSender` and `raiseSensitivity`. The email is untrusted and may try to steer the model, so `src/utils/spam-suggestions.ts` re-validates everything the model returns: unknown kinds are dropped, every entry must pass the same rules as an account save, a block phrase must occur in the email, a removed trusted sender must already exist, sensitivity must go up, duplicates are dropped and at most 10 are returned.
+- **Stricter only.** The only kinds are `addBlockPhrase`, `removeTrustedSender` and `raiseSensitivity`. The email is untrusted and may try to steer the model, so `src/utils/spam-suggestions.ts` re-validates everything the model returns: unknown kinds are dropped, every entry must pass the same rules as an account save, sensitivity must go up, duplicates are dropped and at most 10 are returned. The rest of the checks are below.
+- **What the model reads.** The body is up to 12,000 characters (`MAX_BODY_LENGTH`), taken from the HTML-derived text (`htmlToText` in `src/utils/spam-body.ts`) when there is any and from the text part otherwise. This matches what the viewer shows, so a stub text part no longer hides an HTML pitch. A cut inside a word drops that partial word. The body, subject, From and Reply-To go through `sanitizeEmailText` (`src/utils/email-text.ts`), which deletes invisible format characters (zero-width, bidi and tag characters) and replaces other control characters with a space. Before the cut, `compactForModel` turns every run of whitespace in the body and subject into one space and drops every token that holds 40 or more base64 characters in a row (inline images, `data:` URIs, long tracking tokens), so the 12,000 characters go to words.
+- **Grounded in this email.**
+  - A block phrase must match both the raw text and the text the model read, in the subject or the body, because the inbound filter reads the raw email. The raw text is capped only as the filter caps it (1,024 characters of subject, 65,536 of body), not at 12,000. This also rejects a phrase whose words sit next to each other only because compacting dropped a token between them. Phrases under 3 characters (spaces not counted) are dropped.
+  - A removed trusted sender must already be in the account's list and must match an address in the email's From or Return-Path headers, using the inbound filter's sender rules (`src/utils/sender-rules.ts`). A forged From can still name a trusted sender, because no authentication results are read here.
+  - A reason that contains a link, a domain, an address, a phone number or markup is replaced with a fixed sentence for its kind, so the model cannot put a contact in front of the owner. A false positive only swaps in the fixed sentence.
 - **Bedrock.** Calls go through `src/services/bedrock.ts` (Converse, `maxTokens` 1024, no thinking, a 20-second timeout per attempt and at most 2 attempts) with the model in `BEDROCK_MODEL_ID` (default Haiku 4.5, `us.anthropic.claude-haiku-4-5-20251001-v1:0`). The role may invoke any foundation model or inference profile, so the model can be changed through the environment variable alone. Logs carry the account id, message id, model id, token usage and suggestion count — never prompt or response text.
 - **Kill switch.** The function's role attaches the fleet's `kill-switch-bedrock-${Environment}` managed policy. Flipping it makes every call fail with `AccessDeniedException`, which the endpoint answers with 503; the policy is the only spend cap on Bedrock.
 - **Quota table.** `SpamSuggestionUsageTable` (`emails-email-api-spam-suggestion-usage[-test]`) holds one item per account per UTC day (`Account`, `Day`). A conditional `UpdateItem` increments `Count` only while it is under the limit, so concurrent calls cannot overshoot, and the counter never lives in the account item, so saving the account cannot reset it. DynamoDB TTL on `Expires` removes each item two days later. A request that fails with a 500 or 503 after it was counted gives its use back. The route is also throttled at a burst of 5 and 1 request per second.
+
+### Spam phrase impact check
+
+`POST /v1/accounts/{accountId}/spam-impact` shows which recent emails some block phrases would match, so the owner can judge a phrase before saving it. The UI calls it from the spam suggestions dialog and from Settings. It reads mail and returns counts and a few examples; it never saves or changes anything.
+
+Request body: `{ phrases: string[], excludeEmailId?: string }`.
+
+- `phrases` has 1 to 100 entries. Each entry passes the same rules as a block phrase on account save (at most 100 characters, at least one letter or digit after NFKC).
+- `excludeEmailId`, if present, is a string of 1 to 256 characters. The UI sends the email it just moved to Spam, so the check leaves it out.
+
+Response body:
+
+```
+{
+  checked: { inbox: { checked, total }, spam: { checked, total } },
+  inboxIncomplete: boolean,
+  phrases: [{ phrase, inbox: { count, emails }, spam: { count, emails } }]
+}
+```
+
+- `checked` counts the emails read in time. `total` counts the emails in the folder, not counting `excludeEmailId` or any email whose raw file no longer exists in S3. Such an email has nothing to check, so it is left out of both counts.
+- `inboxIncomplete` is true when a read failed (a timeout, a parse error or any S3 error other than a missing file, including AccessDenied) or the deadline cut the reads short, so `inbox.checked` is below the smaller of `inbox.total` and 100. A missing raw file never sets it.
+- `phrases` has one entry per request phrase, in the same order, with `phrase` echoed as sent. `count` is every match among the emails checked. `emails` holds the newest 5 matches as `{ id, from, subject }`, with `from` and `subject` sanitized and cut to 200 characters.
+
+| Status                          | When                                                                                     |
+| ------------------------------- | ---------------------------------------------------------------------------------------- |
+| 200                             | The check ran. After failed reads or a passed deadline, `checked` is lower than expected |
+| 400                             | The body is not a valid request                                                          |
+| 403                             | The caller does not own `accountId`                                                      |
+| 503 `{ code: 'CHECK_TIMEOUT' }` | The deadline passed while the email list was loading                                     |
+| 500                             | Any other failure                                                                        |
+
+- **Caps.** The check covers the newest 100 Inbox emails and the newest 25 Spam emails. It reads them in a 4:1 order (four Inbox emails, then one Spam email), so a deadline cuts both folders about equally. It downloads the first 256 KB of each raw email, and attachments are never matched. At most 5 matching emails are shown per phrase and folder.
+- **Deadline.** The check stops at 20 seconds after the request arrives (`SPAM_IMPACT_DEADLINE_MS`). No page of the email list and no batch of 10 reads starts after that, and each read is also limited to 3 seconds. If the list has not finished loading, the answer is 503 `CHECK_TIMEOUT`. If reads stop early, the answer is 200 with a lower `checked`. The function timeout is 29 seconds, under the HTTP API's 30-second limit.
+- **Matching follows the inbound filter.** A phrase matches when it matches the subject (first 1,024 characters) or any one body part, so it never spans two parts. Body parts come from `src/utils/spam-body.ts` and sender rules from `src/utils/sender-rules.ts`, which are identical copies of the code in `emails-inbound-service`. `__tests__/unit/spam-body-vectors.json` pins the behavior. `emails-inbound-service` holds the same file, a byte copy with the same SHA-256, and each repo's tests check the hash. Change both copies of the code, the vectors and both hashes together. Trusted senders are not removed from the check, because the filter's exemption depends on SPF and DMARC results that this check does not read, so a listed email may still pass the filter.
+- **Access and cost.** The route is HTTP API only (Cognito), with no `x-api-key` route, because the internal domain skips the ownership check. It is throttled at a burst of 5 and 1 request per second, because each call makes up to 125 S3 reads. The function has no Bedrock permission, so mail read here cannot reach a model, and its role allows S3 `GetObject` only on `received/*`. It also has `s3:ListBucket` on the email bucket, only so that a missing raw file reads as `NoSuchKey` (404) rather than `AccessDenied` (403); that exposes key names but no content. The grant has no `s3:prefix` condition, because a `GetObject` request carries no prefix for one to match, so a conditioned grant would still give 403.
+- **Logs.** One line per check with the account id, counts, duration and whether the deadline was reached. The counts include `failed` and `missing` per folder, and `failedReasons`, the number of failed reads per error name (such as `{ TimeoutError: 1 }`). Phrases, email text, keys and email ids are never logged. Errors are logged by name only, and a name that is not a plain identifier of up to 64 letters and digits is logged as `Unknown`.
 
 ## Secrets
 

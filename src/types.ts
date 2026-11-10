@@ -163,6 +163,71 @@ export interface SpamSuggestion {
   value: string
 }
 
+// Spam impact
+
+export interface SpamFolderCounts {
+  inbox: number
+  spam: number
+}
+
+// One email read successfully, with one match flag per request phrase
+export interface SpamEmailImpactResult {
+  email: EmailBatch
+  matches: boolean[]
+}
+
+export interface SpamImpactRequest {
+  excludeEmailId?: string // an email to leave out, such as the one just moved to Spam
+  phrases: string[]
+}
+
+export interface SpamImpactEmail {
+  from: string // Email.from, sanitized, cut to 200 characters
+  id: string
+  subject: string // Email.subject, sanitized, cut to 200 characters
+}
+
+export interface SpamFolderImpact {
+  count: number // every match among the emails checked
+  emails: SpamImpactEmail[] // the newest SPAM_IMPACT_EMAILS_SHOWN (5) matches
+}
+
+export interface SpamPhraseImpact {
+  inbox: SpamFolderImpact
+  phrase: string // echoed exactly as sent
+  spam: SpamFolderImpact
+}
+
+export interface SpamCheckedCount {
+  checked: number // emails read successfully in time
+  total: number // emails in the folder, not counting excludeEmailId or an email whose raw file is missing
+}
+
+export interface SpamImpactResponse {
+  checked: { inbox: SpamCheckedCount; spam: SpamCheckedCount }
+  // true when a read failed or the deadline cut reads short, so inbox.checked < the smaller of inbox.total and 100.
+  // An email whose raw file is missing has nothing to check, so it is left out of total and never sets this.
+  inboxIncomplete: boolean
+  phrases: SpamPhraseImpact[] // one per request phrase, same order
+}
+
+// Per-folder counts for buildImpactResponse. totals counts every candidate email; missing counts reads that found no
+// raw file, failed counts reads that went wrong (timeouts, parse errors, other S3 errors) and notAttempted counts
+// emails the deadline left unread.
+export interface SpamImpactCounts {
+  failed: SpamFolderCounts
+  missing: SpamFolderCounts
+  notAttempted: SpamFolderCounts
+  totals: SpamFolderCounts
+}
+
+// Injected into createPostSpamImpactHandler. createAbortSignal makes the signal that limits the email list's pages
+// and each email read, given the milliseconds allowed.
+export interface SpamImpactDependencies {
+  clock: () => number
+  createAbortSignal: (ms: number) => AbortSignal
+}
+
 // Push
 
 // The push carries facts, not sentences: the service worker assembles the English. These three

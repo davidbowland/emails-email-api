@@ -1,0 +1,352 @@
+{
+  "bodyParts": [
+    {
+      "note": "text only",
+      "text": "Hello there",
+      "expected": ["Hello there"]
+    },
+    {
+      "note": "html only",
+      "html": "<p>Hello <b>there</b></p>",
+      "expected": [" Hello  there  "]
+    },
+    {
+      "note": "text and html both",
+      "text": "Plain words",
+      "html": "<p>Html words</p>",
+      "expected": ["Plain words", " Html words "]
+    },
+    {
+      "note": "neither part",
+      "expected": []
+    },
+    {
+      "note": "script and style blocks are dropped",
+      "html": "<p>keep</p><script>var x = \"hidden\"</script><style>.a{color:red}</style><p>also keep</p>",
+      "expected": [" keep    also keep "]
+    },
+    {
+      "note": "script tags are case-insensitive",
+      "html": "before<SCRIPT type=\"text/javascript\">hidden</SCRIPT>after",
+      "expected": ["before after"]
+    },
+    {
+      "note": "unterminated script drops the rest",
+      "html": "<p>keep</p><script>hidden forever <p>more hidden</p>",
+      "expected": [" keep "]
+    },
+    {
+      "note": "closing style does not end a script",
+      "html": "<p>keep</p><script>hidden</style>still hidden</script><p>after</p>",
+      "expected": [" keep   after "]
+    },
+    {
+      "note": "named entities decode",
+      "html": "a&nbsp;b &lt;c&gt; &quot;d&quot; &apos;e&apos; f&zwj;g&zwnj;h",
+      "expected": ["a b <c> \"d\" 'e' f‍g‌h"]
+    },
+    {
+      "note": "ampersand entity stays literal for a numeric entity",
+      "html": "x&amp;#8203;y &amp;lt; &amp;amp;",
+      "expected": ["x&#8203;y &lt; &amp;"]
+    },
+    {
+      "note": "decimal entity decodes",
+      "html": "caf&#233; &#8203;zero",
+      "expected": ["café ​zero"]
+    },
+    {
+      "note": "hex entity decodes",
+      "html": "caf&#xE9; &#x200B;zero &#X41;",
+      "expected": ["café ​zero A"]
+    },
+    {
+      "note": "entity above the Unicode range becomes a space",
+      "html": "a&#9999999;b",
+      "expected": ["a b"]
+    },
+    {
+      "note": "text longer than 64 KB is truncated",
+      "text": {
+        "repeatChar": "a",
+        "repeatCount": 70000
+      },
+      "expected": [
+        {
+          "repeatChar": "a",
+          "repeatCount": 65536
+        }
+      ]
+    },
+    {
+      "note": "html longer than 64 KB is truncated",
+      "html": {
+        "repeatChar": "a",
+        "repeatCount": 70000
+      },
+      "expected": [
+        {
+          "repeatChar": "a",
+          "repeatCount": 65536
+        }
+      ]
+    }
+  ],
+  "senderRules": [
+    {
+      "note": "exact address",
+      "address": "alex@example.com",
+      "rule": "alex@example.com",
+      "expected": true
+    },
+    {
+      "note": "exact address of a different user",
+      "address": "sam@example.com",
+      "rule": "alex@example.com",
+      "expected": false
+    },
+    {
+      "note": "@domain rule",
+      "address": "alex@example.com",
+      "rule": "@example.com",
+      "expected": true
+    },
+    {
+      "note": "bare domain rule",
+      "address": "alex@example.com",
+      "rule": "example.com",
+      "expected": true
+    },
+    {
+      "note": "subdomain matches a bare domain rule",
+      "address": "alex@mail.example.com",
+      "rule": "example.com",
+      "expected": true
+    },
+    {
+      "note": "subdomain matches an @domain rule",
+      "address": "alex@mail.example.com",
+      "rule": "@example.com",
+      "expected": true
+    },
+    {
+      "note": "partial domain name is rejected",
+      "address": "alex@notexample.com",
+      "rule": "example.com",
+      "expected": false
+    },
+    {
+      "note": "partial domain name is rejected for @domain",
+      "address": "alex@notexample.com",
+      "rule": "@example.com",
+      "expected": false
+    },
+    {
+      "note": "parent domain does not match a subdomain rule",
+      "address": "alex@example.com",
+      "rule": "mail.example.com",
+      "expected": false
+    },
+    {
+      "note": "address rule never matches another domain",
+      "address": "alex@mail.example.com",
+      "rule": "alex@example.com",
+      "expected": false
+    },
+    {
+      "note": "case-insensitive address",
+      "address": "Alex@Example.COM",
+      "rule": "alex@example.com",
+      "expected": true
+    },
+    {
+      "note": "case-insensitive domain",
+      "address": "alex@EXAMPLE.com",
+      "rule": "Example.Com",
+      "expected": true
+    },
+    {
+      "note": "empty rule matches nothing",
+      "address": "alex@example.com",
+      "rule": "",
+      "expected": false
+    },
+    {
+      "note": "bare @ matches nothing",
+      "address": "alex@example.com",
+      "rule": "@",
+      "expected": false
+    },
+    {
+      "note": "address without a domain",
+      "address": "alex",
+      "rule": "example.com",
+      "expected": false
+    }
+  ],
+  "wholeEmail": [
+    {
+      "note": "phrase in the subject",
+      "subject": "Free money inside",
+      "text": "nothing",
+      "phrase": "free money",
+      "expected": true
+    },
+    {
+      "note": "phrase in the text part",
+      "subject": "Hello",
+      "text": "Get your free money today",
+      "phrase": "free money",
+      "expected": true
+    },
+    {
+      "note": "phrase in the HTML part only",
+      "subject": "Hello",
+      "html": "<p>Get your <b>free</b> money today</p>",
+      "phrase": "free money",
+      "expected": true
+    },
+    {
+      "note": "phrase absent everywhere",
+      "subject": "Hello",
+      "text": "Nothing here",
+      "html": "<p>Nothing</p>",
+      "phrase": "free money",
+      "expected": false
+    },
+    {
+      "note": "phrase spanning the subject and the body does not match",
+      "subject": "Claim your free",
+      "text": "money now",
+      "phrase": "free money",
+      "expected": false
+    },
+    {
+      "note": "phrase spanning the text and HTML parts does not match",
+      "subject": "Hello",
+      "text": "Claim your free",
+      "html": "<p>money now</p>",
+      "phrase": "free money",
+      "expected": false
+    },
+    {
+      "note": "phrase only inside a script does not match",
+      "subject": "Hello",
+      "html": "<script>free money</script><p>safe</p>",
+      "phrase": "free money",
+      "expected": false
+    },
+    {
+      "note": "phrase only inside a style does not match",
+      "subject": "Hello",
+      "html": "<style>free money</style><p>safe</p>",
+      "phrase": "free money",
+      "expected": false
+    },
+    {
+      "note": "phrase split across HTML tags matches as separate words",
+      "subject": "Hello",
+      "html": "<p>free</p><p>money</p>",
+      "phrase": "free money",
+      "expected": true
+    },
+    {
+      "note": "phrase must match whole words",
+      "subject": "Hello",
+      "text": "freemoney and free moneys",
+      "phrase": "free money",
+      "expected": false
+    },
+    {
+      "note": "subject cut at 1,024 characters hides a later phrase",
+      "subject": "x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x needle",
+      "text": "safe",
+      "phrase": "needle",
+      "expected": false
+    },
+    {
+      "note": "phrase inside the first 1,024 subject characters matches",
+      "subject": "x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x x needle",
+      "text": "safe",
+      "phrase": "needle",
+      "expected": true
+    },
+    {
+      "note": "case-insensitive",
+      "subject": "Hello",
+      "text": "FREE MONEY",
+      "phrase": "Free Money",
+      "expected": true
+    },
+    {
+      "note": "accented letters match literally",
+      "subject": "Hello",
+      "text": "Visit the café today",
+      "phrase": "café",
+      "expected": true
+    },
+    {
+      "note": "accent mismatch does not match",
+      "subject": "Hello",
+      "text": "Visit the cafe today",
+      "phrase": "café",
+      "expected": false
+    },
+    {
+      "note": "curly quotes match straight apostrophes",
+      "subject": "Hello",
+      "text": "You don’t want to miss this",
+      "phrase": "don't want",
+      "expected": true
+    },
+    {
+      "note": "curly double quotes in text",
+      "subject": "Hello",
+      "text": "Say “free money” now",
+      "phrase": "\"free money\"",
+      "expected": true
+    },
+    {
+      "note": "zero-width character inside a word is removed",
+      "subject": "Hello",
+      "text": "fr​ee mo‍ney",
+      "phrase": "free money",
+      "expected": true
+    },
+    {
+      "note": "zero-width entity in HTML is removed",
+      "subject": "Hello",
+      "html": "<p>fr&#8203;ee money</p>",
+      "phrase": "free money",
+      "expected": true
+    },
+    {
+      "note": "literal &amp;#8203; entity text stays literal",
+      "subject": "Hello",
+      "html": "<p>fr&amp;#8203;ee money</p>",
+      "phrase": "free money",
+      "expected": false
+    },
+    {
+      "note": "İstanbul matches itself",
+      "subject": "Hello",
+      "text": "Welcome to İstanbul",
+      "phrase": "İstanbul",
+      "expected": true
+    },
+    {
+      "note": "İstanbul does not match plain istanbul",
+      "subject": "Hello",
+      "text": "Welcome to istanbul",
+      "phrase": "İstanbul",
+      "expected": false
+    },
+    {
+      "note": "plain Istanbul matches lowercase text",
+      "subject": "Hello",
+      "text": "Welcome to ISTANBUL",
+      "phrase": "Istanbul",
+      "expected": true
+    }
+  ]
+}

@@ -34,6 +34,8 @@ describe('post-spam-suggestions', () => {
   // A hostile message that tries to steer the model into loosening the filter.
   const injectedMail = {
     ...parsedContents,
+    headers: new Map(),
+    html: false,
     replyTo: { text: 'claims@domain.com', value: [{ address: 'claims@domain.com', name: '' }] },
     subject: 'Account notice',
     text:
@@ -281,6 +283,29 @@ describe('post-spam-suggestions', () => {
       expect(text).toContain('Claim your free cruise now.')
     })
 
+    test('expect the parsed email passed through and no S3 object read but the reported email', async () => {
+      await postSpamSuggestionsHandler(event)
+
+      expect(s3.getS3Object).toHaveBeenCalledTimes(1)
+      expect(s3.getS3Object).toHaveBeenCalledWith(`received/${accountId}/${emailId}`)
+      expect(mailparser.simpleParser).toHaveBeenCalledWith(Buffer.from('raw email'))
+    })
+
+    test('expect removeTrustedSender dropped when the entry matches no sender of this email', async () => {
+      jest.mocked(dynamodb).getAccountById.mockResolvedValueOnce({
+        ...trustingAccount,
+        spamFilter: { ...trustingAccount.spamFilter, trustedSenders: ['@elsewhere.com'] },
+      })
+      jest
+        .mocked(bedrock)
+        .converse.mockResolvedValueOnce(
+          toolOutput({ suggestions: [{ kind: 'removeTrustedSender', reason: 'Trusted', value: '@elsewhere.com' }] }),
+        )
+      const result = await postSpamSuggestionsHandler(event)
+
+      expect(JSON.parse((result as { body: string }).body)).toEqual({ suggestions: [] })
+    })
+
     test('expect injected loosening suggestions dropped and stricter ones returned', async () => {
       const result = await postSpamSuggestionsHandler(event)
 
@@ -327,7 +352,7 @@ describe('post-spam-suggestions', () => {
     test('expect empty sender, reply-to, subject and body when the parsed email has none', async () => {
       jest
         .mocked(mailparser)
-        .simpleParser.mockResolvedValueOnce({ attachments: [], headers: {} } as unknown as ParsedMail)
+        .simpleParser.mockResolvedValueOnce({ attachments: [], headers: new Map() } as unknown as ParsedMail)
       await postSpamSuggestionsHandler(event)
 
       const text = (jest.mocked(bedrock).converse.mock.calls[0][0].input.messages?.[0].content?.[0] as { text: string })

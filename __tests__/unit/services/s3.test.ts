@@ -1,5 +1,15 @@
+import { Readable } from 'stream'
+
 import { emailBucket } from '@config'
-import { copyS3Object, deleteS3Object, getS3Object, getSignedS3Url, putS3Object, uploadS3Object } from '@services/s3'
+import {
+  copyS3Object,
+  deleteS3Object,
+  getS3Object,
+  getS3ObjectStart,
+  getSignedS3Url,
+  putS3Object,
+  uploadS3Object,
+} from '@services/s3'
 
 const mockSend = jest.fn()
 jest.mock('@aws-sdk/client-s3', () => ({
@@ -118,6 +128,61 @@ describe('S3', () => {
           size: '141119',
         },
       })
+    })
+  })
+
+  describe('getS3ObjectStart', () => {
+    const byteLimit = 262_144
+
+    test('expect a byte range request with the abort signal in the send options', async () => {
+      const abortSignal = new AbortController().signal
+      mockSend.mockResolvedValueOnce({ Body: Readable.from([Buffer.from('raw email')]) })
+      await getS3ObjectStart(key, byteLimit, abortSignal)
+
+      expect(mockSend).toHaveBeenCalledWith({ Bucket: emailBucket, Key: key, Range: 'bytes=0-262143' }, { abortSignal })
+    })
+
+    test('expect the body joined into one buffer', async () => {
+      mockSend.mockResolvedValueOnce({ Body: Readable.from([Buffer.from('raw '), Buffer.from('email')]) })
+      const result = await getS3ObjectStart(key, byteLimit, new AbortController().signal)
+
+      expect(result).toEqual(Buffer.from('raw email'))
+    })
+
+    test('expect no more than byteLimit bytes even if more arrive', async () => {
+      mockSend.mockResolvedValueOnce({ Body: Readable.from([Buffer.from('0123456789')]) })
+      const result = await getS3ObjectStart(key, 4, new AbortController().signal)
+
+      expect(result).toEqual(Buffer.from('0123'))
+    })
+
+    test('expect reject when the signal aborts while the body is streaming', async () => {
+      const controller = new AbortController()
+      const body = new Readable({ read: () => undefined })
+      mockSend.mockResolvedValueOnce({ Body: body })
+      const pending = getS3ObjectStart(key, byteLimit, controller.signal)
+      body.push(Buffer.from('partial'))
+      controller.abort(Object.assign(new Error('timed out'), { name: 'TimeoutError' }))
+
+      await expect(pending).rejects.toEqual(expect.objectContaining({ name: 'TimeoutError' }))
+      expect(body.destroyed).toBe(true)
+    })
+
+    test('expect reject when the signal has already aborted', async () => {
+      const body = new Readable({ read: () => undefined })
+      mockSend.mockResolvedValueOnce({ Body: body })
+
+      await expect(getS3ObjectStart(key, byteLimit, AbortSignal.abort())).rejects.toEqual(
+        expect.objectContaining({ name: 'AbortError' }),
+      )
+    })
+
+    test('expect reject when the request rejects', async () => {
+      mockSend.mockRejectedValueOnce(Object.assign(new Error('gone'), { name: 'NoSuchKey' }))
+
+      await expect(getS3ObjectStart(key, byteLimit, new AbortController().signal)).rejects.toEqual(
+        expect.objectContaining({ name: 'NoSuchKey' }),
+      )
     })
   })
 

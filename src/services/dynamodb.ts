@@ -1,4 +1,5 @@
 import {
+  AttributeValue,
   DeleteItemCommand,
   DeleteItemOutput,
   DynamoDBClient,
@@ -6,6 +7,7 @@ import {
   PutItemCommand,
   PutItemOutput,
   QueryCommand,
+  QueryOutput,
   ScanCommand,
   ScanOutput,
   UpdateItemCommand,
@@ -21,6 +23,7 @@ import {
 } from '../config'
 import { Account, AccountBatch, DEFAULT_NOTIFICATION_PREVIEW, Email, EmailBatch, PushSubscription } from '../types'
 import { xrayCapture } from '../utils/logging'
+import { createSpamImpactDeadlineError } from '../utils/spam-impact-errors'
 
 const dynamodb = xrayCapture(new DynamoDBClient({ apiVersion: '2012-08-10' }))
 
@@ -204,8 +207,9 @@ const getReceivedFromScan = (response: ScanOutput): EmailBatch[] =>
     [] as EmailBatch[],
   ) as EmailBatch[]
 
-export const getReceived = async (account: string): Promise<EmailBatch[]> => {
-  const command = new QueryCommand({
+const buildReceivedQuery = (account: string, exclusiveStartKey?: Record<string, AttributeValue>): QueryCommand =>
+  new QueryCommand({
+    ...(exclusiveStartKey === undefined ? {} : { ExclusiveStartKey: exclusiveStartKey }),
     ExpressionAttributeNames: { '#d': 'Data' },
     ExpressionAttributeValues: {
       ':v1': {
@@ -216,9 +220,51 @@ export const getReceived = async (account: string): Promise<EmailBatch[]> => {
     ProjectionExpression: 'Account,MessageID,#d',
     TableName: dynamodbReceivedTableName,
   })
-  const response = await dynamodb.send(command)
+
+// A single query: the list endpoint keeps DynamoDB's 1 MB page cut-off.
+export const getReceived = async (account: string): Promise<EmailBatch[]> => {
+  const response = await dynamodb.send(buildReceivedQuery(account))
   return getReceivedFromScan(response)
 }
+
+// The page is sent with an abort signal for the time left, so a slow page ends at the deadline rather than at the
+// Lambda timeout. An abort is answered with the deadline error, whatever error the SDK raised for it.
+const getReceivedPage = async (command: QueryCommand, abortSignal: AbortSignal): Promise<QueryOutput> => {
+  try {
+    return await dynamodb.send(command, { abortSignal })
+  } catch (error: unknown) {
+    if (abortSignal.aborted) {
+      throw createSpamImpactDeadlineError()
+    }
+    throw error
+  }
+}
+
+const getReceivedPages = async (
+  account: string,
+  timeLeft: () => number,
+  createAbortSignal: (ms: number) => AbortSignal,
+  exclusiveStartKey?: Record<string, AttributeValue>,
+): Promise<EmailBatch[]> => {
+  const remaining = timeLeft()
+  if (!(remaining > 0)) {
+    throw createSpamImpactDeadlineError()
+  }
+  const response = await getReceivedPage(buildReceivedQuery(account, exclusiveStartKey), createAbortSignal(remaining))
+  const items = getReceivedFromScan(response) ?? []
+  return response.LastEvaluatedKey === undefined
+    ? items
+    : [...items, ...(await getReceivedPages(account, timeLeft, createAbortSignal, response.LastEvaluatedKey))]
+}
+
+// Every received email for the account, following LastEvaluatedKey. timeLeft (milliseconds until the deadline) is asked
+// before each page and limits that page; when no time is left, or a page is cut off, this throws the error from
+// createSpamImpactDeadlineError.
+export const getAllReceived = async (
+  account: string,
+  timeLeft: () => number,
+  createAbortSignal: (ms: number) => AbortSignal,
+): Promise<EmailBatch[]> => getReceivedPages(account, timeLeft, createAbortSignal)
 
 export const setReceivedById = async (account: string, id: string, data: Email): Promise<PutItemOutput> => {
   const command = new PutItemCommand({

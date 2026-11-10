@@ -23,12 +23,19 @@ import {
 /* Spam filter */
 
 const SPAM_SENSITIVITIES: SpamSensitivity[] = ['low', 'medium', 'high']
-const SPAM_FILTER_MAX_ENTRIES = 100
-const SPAM_FILTER_MAX_ENTRY_LENGTH = 100
+export const SPAM_FILTER_MAX_ENTRIES = 100
+export const SPAM_FILTER_MAX_ENTRY_LENGTH = 100
 
 // A phrase with no letter or digit normalizes to zero words and would match nothing (or, in a
 // careless matcher, everything).
 const HAS_LETTER_OR_DIGIT = /[\p{L}\p{N}]/u
+
+// Checked after NFKC, the same normalization the phrase matcher applies first.
+export const isValidBlockPhrase = (entry: unknown): boolean =>
+  typeof entry === 'string' &&
+  entry.length <= SPAM_FILTER_MAX_ENTRY_LENGTH &&
+  HAS_LETTER_OR_DIGIT.test(entry.normalize('NFKC'))
+
 // An address (local@domain.tld), an @domain or a bare domain; each domain needs at least one dot so
 // a bare TLD such as "com" cannot trust half the internet. No whitespace and no wildcards.
 // Separators, quotes, brackets and invisible format characters (zero-width spaces among them) are
@@ -73,8 +80,7 @@ export const formatSpamFilter = (spamFilter: SpamFilter): SpamFilter => {
     blockPhrases: validateSpamFilterList(
       spamFilter.blockPhrases,
       'blockPhrases',
-      // Checked after NFKC, the same normalization the phrase matcher applies first.
-      (phrase) => HAS_LETTER_OR_DIGIT.test(phrase.normalize('NFKC')),
+      isValidBlockPhrase,
       'contain at least one letter or number',
     ),
     sensitivity: spamFilter.sensitivity,
