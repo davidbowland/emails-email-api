@@ -73,8 +73,12 @@ describe('spam-suggestions', () => {
       expect(system).toContain('targeted first, then broader, then aggressive')
       expect(system).toContain('- targeted: a distinctive phrase of several words')
       expect(system).toContain('- broader: a shorter, more general phrase that names what the message is selling')
-      expect(system).toContain('"app development"')
+      expect(system).toContain('"app development", "SEO services" or "crypto investment"')
       expect(system).toContain('"Microsoft 365" when the sender is clearly not that brand')
+      expect(system).toContain('the reason must say it would also catch real mail from that brand')
+      expect(system).toContain("Never an everyday word such as 'you', 'the', 'your', 'email' or 'please'.")
+      expect(system).toContain('List any removeTrustedSender or raiseSensitivity first, then phrases')
+      expect(system).toContain('For removeTrustedSender and raiseSensitivity, any level is fine; we set it.')
       expect(system).toContain('- aggressive: a single word or a very short phrase')
       expect(system).toContain('the phrase must appear in the subject or the body exactly as written there')
       expect(system).toContain('Suggest at most 12 changes')
@@ -93,7 +97,7 @@ describe('spam-suggestions', () => {
                 properties: expect.objectContaining({
                   kind: { enum: ['addBlockPhrase', 'removeTrustedSender', 'raiseSensitivity'], type: 'string' },
                   level: expect.objectContaining({
-                    description: expect.stringContaining('aggressive: a single word'),
+                    description: expect.stringMatching(/^targeted: [\s\S]*aggressive: a single word/),
                     enum: ['targeted', 'broader', 'aggressive'],
                     type: 'string',
                   }),
@@ -809,21 +813,22 @@ describe('spam-suggestions', () => {
       expect(validateSuggestions(input, fullAccount, email, ids())).toEqual([])
     })
 
-    test('expect a phrase level kept, and a phrase with a missing or unknown level dropped', () => {
+    test('expect a phrase level trimmed and lowercased, and a phrase with a missing or unknown level dropped', () => {
       const input = {
         suggestions: [
           { kind: 'addBlockPhrase', level: 'broader', reason: 'Broader', value: 'free cruise' },
           { kind: 'addBlockPhrase', reason: 'No level', value: 'prize desk' },
           { kind: 'addBlockPhrase', level: 'extreme', reason: 'Unknown level', value: 'you have won' },
-          { kind: 'addBlockPhrase', level: 'Targeted', reason: 'Wrong case', value: 'claim' },
+          { kind: 'addBlockPhrase', level: ' Targeted ', reason: 'Case and spaces', value: 'claim' },
           { kind: 'addBlockPhrase', level: 7, reason: 'Not a string', value: 'today' },
           { kind: 'addBlockPhrase', level: 'aggressive', reason: 'Aggressive', value: 'prize' },
         ],
       }
 
       expect(validateSuggestions(input, strictAccount, email, ids())).toEqual([
-        { id: 'id-1', kind: 'addBlockPhrase', level: 'broader', reason: 'Broader', value: 'free cruise' },
-        { id: 'id-2', kind: 'addBlockPhrase', level: 'aggressive', reason: 'Aggressive', value: 'prize' },
+        { id: 'id-1', kind: 'addBlockPhrase', level: 'targeted', reason: 'Case and spaces', value: 'claim' },
+        { id: 'id-2', kind: 'addBlockPhrase', level: 'broader', reason: 'Broader', value: 'free cruise' },
+        { id: 'id-3', kind: 'addBlockPhrase', level: 'aggressive', reason: 'Aggressive', value: 'prize' },
       ])
     })
 
@@ -879,6 +884,106 @@ describe('spam-suggestions', () => {
       ])
     })
 
+    test('expect a full set of phrases at every level to keep the aggressive ones and a trusted sender removal', () => {
+      const words = 'aaa bbb ccc ddd eee fff ggg hhh iii jjj kkk lll'
+      const levels = ['targeted', 'broader', 'aggressive']
+      const input = {
+        suggestions: [
+          { kind: 'removeTrustedSender', reason: 'Trusted', value: '@spam.example' },
+          ...words.split(' ').map((word, index) => ({
+            kind: 'addBlockPhrase',
+            level: levels[Math.floor(index / 4)],
+            reason: 'Word',
+            value: word,
+          })),
+        ],
+      }
+
+      expect(
+        validateSuggestions(input, strictAccount, makeEmail({ text: words }), ids()).map(({ level, value }) => [
+          level,
+          value,
+        ]),
+      ).toEqual([
+        ['targeted', '@spam.example'],
+        ['targeted', 'aaa'],
+        ['targeted', 'bbb'],
+        ['targeted', 'ccc'],
+        ['broader', 'eee'],
+        ['broader', 'fff'],
+        ['broader', 'ggg'],
+        ['broader', 'hhh'],
+        ['aggressive', 'iii'],
+        ['aggressive', 'jjj'],
+        ['aggressive', 'kkk'],
+        ['aggressive', 'lll'],
+      ])
+    })
+
+    test('expect a dropped phrase to leave its level slot free', () => {
+      const words = 'one two three four five six'
+      const input = {
+        suggestions: [
+          ...['one', 'two', 'three', 'four'].map((value) => ({
+            kind: 'addBlockPhrase',
+            level: 'broader',
+            reason: 'Word',
+            value,
+          })),
+          { kind: 'addBlockPhrase', level: 'broader', reason: 'Not in the message', value: 'seven' },
+          { kind: 'addBlockPhrase', level: 'broader', reason: 'Fifth', value: 'five' },
+        ],
+      }
+
+      expect(
+        validateSuggestions(input, strictAccount, makeEmail({ text: words }), ids()).map(({ value }) => value),
+      ).toEqual(['one', 'two', 'three', 'four', 'five'])
+    })
+
+    test('expect an entry at a full level, not in the message, not to block a valid one after it', () => {
+      const words = 'one two three four five six'
+      const input = {
+        suggestions: [
+          ...['one', 'two', 'three', 'four', 'five'].map((value) => ({
+            kind: 'addBlockPhrase',
+            level: 'broader',
+            reason: 'Word',
+            value,
+          })),
+          { kind: 'addBlockPhrase', level: 'broader', reason: 'Full and not in the message', value: 'seven' },
+          { kind: 'addBlockPhrase', level: 'aggressive', reason: 'Valid', value: 'six' },
+        ],
+      }
+
+      expect(
+        validateSuggestions(input, strictAccount, makeEmail({ text: words }), ids()).map(({ level, value }) => [
+          level,
+          value,
+        ]),
+      ).toEqual([
+        ['broader', 'one'],
+        ['broader', 'two'],
+        ['broader', 'three'],
+        ['broader', 'four'],
+        ['broader', 'five'],
+        ['aggressive', 'six'],
+      ])
+    })
+
+    test('expect a single everyday word dropped, but kept inside a longer phrase', () => {
+      const everyday = makeEmail({ text: 'Dear customer, please check your email. Thanks for the prize.' })
+      const input = {
+        suggestions: ['Please', 'your', 'THE', 'email', 'thanks', 'dear', 'please check your email', 'prize'].map(
+          (value) => ({ kind: 'addBlockPhrase', level: 'aggressive', reason: 'Word', value }),
+        ),
+      }
+
+      expect(validateSuggestions(input, strictAccount, everyday, ids()).map(({ value }) => value)).toEqual([
+        'please check your email',
+        'prize',
+      ])
+    })
+
     test('expect at most 5 suggestions per level', () => {
       const words = 'one two three four five six seven'
       const input = {
@@ -905,7 +1010,7 @@ describe('spam-suggestions', () => {
       ])
     })
 
-    test('expect at most 12 suggestions, the first 12 accepted in the model order', () => {
+    test('expect at most 12 suggestions, trimmed from the end of the largest level, mildest level first on a tie', () => {
       const words = 'aaa bbb ccc ddd eee fff ggg hhh iii jjj kkk lll mmm nnn ooo'
       const levels = ['aggressive', 'broader', 'targeted']
       const input = {

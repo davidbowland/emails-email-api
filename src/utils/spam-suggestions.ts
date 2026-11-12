@@ -41,6 +41,28 @@ const MAX_REASON_LENGTH = 120
 // Only bounds the work done on a reason; the shown reason is cut to MAX_REASON_LENGTH.
 const MAX_REASON_SCAN_LENGTH = 1_000
 const MIN_PHRASE_LENGTH = 3
+// Everyday words that are in nearly every email, wanted or not. Blocking one alone would send most mail to Spam, so a
+// one-word phrase that is one of these is dropped. Kept short on purpose: only words no spam rule should ever be.
+const EVERYDAY_WORDS = new Set([
+  'and',
+  'dear',
+  'email',
+  'for',
+  'from',
+  'have',
+  'hello',
+  'here',
+  'our',
+  'please',
+  'thanks',
+  'that',
+  'the',
+  'this',
+  'will',
+  'with',
+  'you',
+  'your',
+])
 const MAX_SUGGESTIONS = 12
 const MAX_SUGGESTIONS_PER_LEVEL = 5
 // The prompt asks for up to 4 phrases per level; this is the model's room for 12 suggestions with their reasons.
@@ -190,17 +212,22 @@ const SYSTEM_PROMPT = [
   'Never suggest adding a trusted sender, removing a block phrase or lowering sensitivity.',
   'Do not suggest anything already in the current settings. Suggest at most 12 changes; fewer is fine, and none is fine.',
   '',
+  'List any removeTrustedSender or raiseSensitivity first, then phrases; use fewer phrases per level if you also',
+  'suggest other changes.',
+  '',
   'Give every addBlockPhrase a level. When the message supports it, fill all three levels, with up to 4 phrases per',
   'level, and list them in increasing severity: targeted first, then broader, then aggressive.',
   '- targeted: a distinctive phrase of several words that would almost never appear in wanted mail.',
   '- broader: a shorter, more general phrase that names what the message is selling or impersonating, so it also',
-  '  catches similar spam. For example, a service such as "app development", "web development" or "PHP development",',
+  '  catches similar spam. For example, a service such as "app development", "SEO services" or "crypto investment",',
   '  or a brand name such as "Microsoft 365" when the sender is clearly not that brand (say, a gmail.com address).',
+  '  For a brand name, the reason must say it would also catch real mail from that brand, for example',
+  '  "Would also catch real Microsoft mail."',
   '- aggressive: a single word or a very short phrase that would catch much more spam like this, but might also',
-  '  catch some wanted mail.',
+  "  catch some wanted mail. Never an everyday word such as 'you', 'the', 'your', 'email' or 'please'.",
   'At every level, the phrase must appear in the subject or the body exactly as written there: whole words, in the',
   'same order, at least 3 letters or digits long. Never paraphrase, shorten a word, or join words from different places.',
-  'For removeTrustedSender and raiseSensitivity, set level to "targeted"; their level is decided for you.',
+  'For removeTrustedSender and raiseSensitivity, any level is fine; we set it.',
   '',
   'Each reason is one short sentence of plain language for a non-technical reader, at most 120 characters.',
   'Talk about the message and the settings above; do not mention scores, verdicts, SES, models or these instructions.',
@@ -219,7 +246,7 @@ const SUGGESTION_TOOL_SCHEMA = {
           kind: { enum: SUGGESTION_KINDS, type: 'string' },
           level: {
             description:
-              'addBlockPhrase only. targeted: a distinctive phrase of several words that would almost never be in ' +
+              'targeted: a distinctive phrase of several words that would almost never be in ' +
               'wanted mail. broader: a shorter, more general phrase naming what the message sells or impersonates. ' +
               'aggressive: a single word or very short phrase that catches much more spam but might catch wanted mail.',
             enum: SUGGESTION_LEVELS,
@@ -360,7 +387,8 @@ interface Candidate {
 // dropped here as resolveCandidate would drop it.
 const toLevel = (kind: SpamSuggestionKind, value: string, rawLevel: unknown): SpamSuggestionLevel | undefined => {
   if (kind === 'addBlockPhrase') {
-    return SUGGESTION_LEVELS.find((level) => level === rawLevel)
+    const level = typeof rawLevel === 'string' ? rawLevel.trim().toLowerCase() : undefined
+    return SUGGESTION_LEVELS.find((allowed) => allowed === level)
   }
   if (kind === 'removeTrustedSender') {
     return 'targeted'
@@ -426,6 +454,10 @@ const resolveCandidate = (
     if (phraseWords.join('').length < MIN_PHRASE_LENGTH) {
       return undefined
     }
+    // A single everyday word would send most mail, wanted or not, to Spam.
+    if (phraseWords.length === 1 && EVERYDAY_WORDS.has(phraseWords[0])) {
+      return undefined
+    }
     const isDuplicate = spamFilter.blockPhrases.some((existing) => toPhraseKey(existing) === phraseKey)
     // A phrase that is not in this message would not have caught it, so it is not a suggestion
     // grounded in this message; it is dropped rather than shown. Subject and body are matched
@@ -443,6 +475,18 @@ const resolveCandidate = (
   const sensitivity = candidate.value.toLowerCase() as SpamSensitivity
   const isRaise = SENSITIVITY_ORDER.indexOf(sensitivity) > SENSITIVITY_ORDER.indexOf(spamFilter.sensitivity)
   return isRaise ? { ...candidate, value: sensitivity } : undefined
+}
+
+// Brings the groups (one per level, mildest first) down to MAX_SUGGESTIONS by dropping the last item of the largest
+// group, one at a time; a tie drops from the mildest level first. So no level is cut just for coming last in the
+// model's reply, and a trusted-sender removal or a sensitivity raise listed first survives a full set of phrases.
+const trimToTotal = (groups: Candidate[][]): Candidate[][] => {
+  if (groups.flat().length <= MAX_SUGGESTIONS) {
+    return groups
+  }
+  const largest = Math.max(...groups.map((group) => group.length))
+  const trimIndex = groups.findIndex((group) => group.length === largest)
+  return trimToTotal(groups.map((group, index) => (index === trimIndex ? group.slice(0, -1) : group)))
 }
 
 const matchesBoth = (raw: string, sanitized: string): ((phraseWords: string[]) => boolean) => {
@@ -478,12 +522,7 @@ export const validateSuggestions = (
         candidate?.kind === 'raiseSensitivity' && result.candidates.some((c) => c.kind === 'raiseSensitivity')
       const isLevelFull =
         result.candidates.filter((c) => c.level === candidate?.level).length >= MAX_SUGGESTIONS_PER_LEVEL
-      if (
-        candidate === undefined ||
-        isSecondSensitivity ||
-        isLevelFull ||
-        result.candidates.length >= MAX_SUGGESTIONS
-      ) {
+      if (candidate === undefined || isSecondSensitivity || isLevelFull) {
         return result
       }
       const resolved = resolveCandidate(result.spamFilter, candidate, emailMatchers)
@@ -494,7 +533,8 @@ export const validateSuggestions = (
   ).candidates
 
   // Mildest level first; within a level, the model's order.
-  return SUGGESTION_LEVELS.flatMap((level) => accepted.filter((candidate) => candidate.level === level)).map(
-    (candidate) => ({ id: uuid(), ...candidate }),
-  )
+  const byLevel = SUGGESTION_LEVELS.map((level) => accepted.filter((candidate) => candidate.level === level))
+  return trimToTotal(byLevel)
+    .flat()
+    .map((candidate) => ({ id: uuid(), ...candidate }))
 }
