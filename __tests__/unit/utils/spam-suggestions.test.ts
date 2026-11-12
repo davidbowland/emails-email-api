@@ -443,17 +443,17 @@ describe('spam-suggestions', () => {
       expect(validateSuggestions(input, strictAccount, email, ids())).toEqual([
         {
           id: 'id-1',
-          kind: 'addBlockPhrase',
-          level: 'targeted',
-          reason: 'Prize offers are a common spam pattern.',
-          value: 'free cruise',
-        },
-        {
-          id: 'id-2',
           kind: 'removeTrustedSender',
           level: 'targeted',
           reason: 'This sender let the message through.',
           value: '@spam.example',
+        },
+        {
+          id: 'id-2',
+          kind: 'addBlockPhrase',
+          level: 'targeted',
+          reason: 'Prize offers are a common spam pattern.',
+          value: 'free cruise',
         },
         {
           id: 'id-3',
@@ -692,8 +692,8 @@ describe('spam-suggestions', () => {
       }
 
       expect(validateSuggestions(input, strictAccount, email, ids()).map(({ reason: shown }) => shown)).toEqual([
-        'This phrase appears in the email you moved to Spam.',
         "This email's sender is on your trusted list.",
+        'This phrase appears in the email you moved to Spam.',
         'A higher setting catches more mail like this.',
       ])
     })
@@ -771,8 +771,8 @@ describe('spam-suggestions', () => {
       }
 
       expect(validateSuggestions(input, strictAccount, email, ids())).toEqual([
-        { id: 'id-1', kind: 'addBlockPhrase', level: 'targeted', reason: 'First', value: 'free cruise' },
-        { id: 'id-2', kind: 'removeTrustedSender', level: 'targeted', reason: 'First', value: '@spam.example' },
+        { id: 'id-1', kind: 'removeTrustedSender', level: 'targeted', reason: 'First', value: '@spam.example' },
+        { id: 'id-2', kind: 'addBlockPhrase', level: 'targeted', reason: 'First', value: 'free cruise' },
       ])
     })
 
@@ -819,17 +819,33 @@ describe('spam-suggestions', () => {
           { kind: 'addBlockPhrase', level: 'broader', reason: 'Broader', value: 'free cruise' },
           { kind: 'addBlockPhrase', reason: 'No level', value: 'prize desk' },
           { kind: 'addBlockPhrase', level: 'extreme', reason: 'Unknown level', value: 'you have won' },
-          { kind: 'addBlockPhrase', level: ' Targeted ', reason: 'Case and spaces', value: 'claim' },
+          { kind: 'addBlockPhrase', level: ' Targeted ', reason: 'Case and spaces', value: 'claim your' },
           { kind: 'addBlockPhrase', level: 7, reason: 'Not a string', value: 'today' },
           { kind: 'addBlockPhrase', level: 'aggressive', reason: 'Aggressive', value: 'prize' },
         ],
       }
 
       expect(validateSuggestions(input, strictAccount, email, ids())).toEqual([
-        { id: 'id-1', kind: 'addBlockPhrase', level: 'targeted', reason: 'Case and spaces', value: 'claim' },
+        { id: 'id-1', kind: 'addBlockPhrase', level: 'targeted', reason: 'Case and spaces', value: 'claim your' },
         { id: 'id-2', kind: 'addBlockPhrase', level: 'broader', reason: 'Broader', value: 'free cruise' },
         { id: 'id-3', kind: 'addBlockPhrase', level: 'aggressive', reason: 'Aggressive', value: 'prize' },
       ])
+    })
+
+    test('expect a single word labeled targeted moved to broader, and a longer phrase left targeted', () => {
+      const input = {
+        suggestions: [
+          { kind: 'addBlockPhrase', level: 'targeted', reason: 'One word', value: 'cruise' },
+          { kind: 'addBlockPhrase', level: 'targeted', reason: 'Two words', value: 'prize desk' },
+        ],
+      }
+
+      expect(validateSuggestions(input, strictAccount, email, ids()).map(({ level, value }) => [level, value])).toEqual(
+        [
+          ['targeted', 'prize desk'],
+          ['broader', 'cruise'],
+        ],
+      )
     })
 
     test.each([
@@ -857,7 +873,7 @@ describe('spam-suggestions', () => {
       },
     )
 
-    test('expect suggestions sorted targeted, broader, aggressive, keeping the model order within a level', () => {
+    test('expect suggestions sorted targeted, broader, aggressive, with other kinds before phrases in a level', () => {
       const lowAccount: Account = { ...strictAccount, spamFilter: { ...strictAccount.spamFilter, sensitivity: 'low' } }
       const input = {
         suggestions: [
@@ -874,8 +890,8 @@ describe('spam-suggestions', () => {
       expect(
         validateSuggestions(input, lowAccount, email, ids()).map(({ id, level, reason }) => [id, level, reason]),
       ).toEqual([
-        ['id-1', 'targeted', 'T1'],
-        ['id-2', 'targeted', 'T2'],
+        ['id-1', 'targeted', 'T2'],
+        ['id-2', 'targeted', 'T1'],
         ['id-3', 'targeted', 'T3'],
         ['id-4', 'broader', 'B1'],
         ['id-5', 'broader', 'B2'],
@@ -886,15 +902,16 @@ describe('spam-suggestions', () => {
 
     test('expect a full set of phrases at every level to keep the aggressive ones and a trusted sender removal', () => {
       const words = 'aaa bbb ccc ddd eee fff ggg hhh iii jjj kkk lll'
+      const values = ['aaa bbb', 'bbb ccc', 'ccc ddd', 'ddd eee', ...words.split(' ').slice(4)]
       const levels = ['targeted', 'broader', 'aggressive']
       const input = {
         suggestions: [
           { kind: 'removeTrustedSender', reason: 'Trusted', value: '@spam.example' },
-          ...words.split(' ').map((word, index) => ({
+          ...values.map((value, index) => ({
             kind: 'addBlockPhrase',
             level: levels[Math.floor(index / 4)],
             reason: 'Word',
-            value: word,
+            value,
           })),
         ],
       }
@@ -906,9 +923,9 @@ describe('spam-suggestions', () => {
         ]),
       ).toEqual([
         ['targeted', '@spam.example'],
-        ['targeted', 'aaa'],
-        ['targeted', 'bbb'],
-        ['targeted', 'ccc'],
+        ['targeted', 'aaa bbb'],
+        ['targeted', 'bbb ccc'],
+        ['targeted', 'ccc ddd'],
         ['broader', 'eee'],
         ['broader', 'fff'],
         ['broader', 'ggg'],
@@ -971,11 +988,19 @@ describe('spam-suggestions', () => {
     })
 
     test('expect a single everyday word dropped, but kept inside a longer phrase', () => {
-      const everyday = makeEmail({ text: 'Dear customer, please check your email. Thanks for the prize.' })
+      const everyday = makeEmail({ text: 'Dear customer, please check your email. Thanks for the prize. Unsubscribe' })
       const input = {
-        suggestions: ['Please', 'your', 'THE', 'email', 'thanks', 'dear', 'please check your email', 'prize'].map(
-          (value) => ({ kind: 'addBlockPhrase', level: 'aggressive', reason: 'Word', value }),
-        ),
+        suggestions: [
+          'Please',
+          'your',
+          'THE',
+          'email',
+          'thanks',
+          'dear',
+          'unsubscribe',
+          'please check your email',
+          'prize',
+        ].map((value) => ({ kind: 'addBlockPhrase', level: 'aggressive', reason: 'Word', value })),
       }
 
       expect(validateSuggestions(input, strictAccount, everyday, ids()).map(({ value }) => value)).toEqual([
@@ -1010,40 +1035,77 @@ describe('spam-suggestions', () => {
       ])
     })
 
-    test('expect at most 12 suggestions, trimmed from the end of the largest level, mildest level first on a tie', () => {
-      const words = 'aaa bbb ccc ddd eee fff ggg hhh iii jjj kkk lll mmm nnn ooo'
-      const levels = ['aggressive', 'broader', 'targeted']
+    test('expect a trusted sender removal listed after 5 targeted phrases kept under the per-level cap', () => {
+      const words = 'aaa bbb ccc ddd eee fff'
       const input = {
-        suggestions: words.split(' ').map((word, index) => ({
-          kind: 'addBlockPhrase',
-          level: levels[index % 3],
-          reason: 'Word',
-          value: word,
-        })),
+        suggestions: [
+          ...['aaa bbb', 'bbb ccc', 'ccc ddd', 'ddd eee', 'eee fff'].map((value) => ({
+            kind: 'addBlockPhrase',
+            level: 'targeted',
+            reason: 'Phrase',
+            value,
+          })),
+          { kind: 'removeTrustedSender', reason: 'Trusted', value: '@spam.example' },
+        ],
+      }
+
+      expect(
+        validateSuggestions(input, strictAccount, makeEmail({ text: words }), ids()).map(({ value }) => value),
+      ).toEqual(['@spam.example', 'aaa bbb', 'bbb ccc', 'ccc ddd', 'ddd eee'])
+    })
+
+    test('expect at most 12 suggestions, trimmed from the end of the largest level, most aggressive level first on a tie', () => {
+      const words = 'aaa bbb ccc ddd eee fff ggg hhh iii jjj kkk lll mmm'
+      const targeted = ['aaa bbb', 'bbb ccc', 'ccc ddd', 'ddd eee', 'eee fff']
+      const broader = ['fff', 'ggg', 'hhh', 'iii', 'jjj']
+      const aggressive = ['kkk', 'lll', 'mmm']
+      const toPhrase = (level: string) => (value: string) => ({ kind: 'addBlockPhrase', level, reason: 'Word', value })
+      const input = {
+        suggestions: [
+          ...aggressive.map(toPhrase('aggressive')),
+          ...broader.map(toPhrase('broader')),
+          ...targeted.map(toPhrase('targeted')),
+        ],
       }
 
       const result = validateSuggestions(input, strictAccount, makeEmail({ text: words }), ids())
-      expect(result.map(({ value }) => value)).toEqual([
-        'ccc',
-        'fff',
-        'iii',
-        'lll',
-        'bbb',
-        'eee',
-        'hhh',
-        'kkk',
-        'aaa',
-        'ddd',
-        'ggg',
-        'jjj',
-      ])
+      expect(result.map(({ value }) => value)).toEqual([...targeted, 'fff', 'ggg', 'hhh', 'iii', ...aggressive])
       expect(result[11]).toEqual({
         id: 'id-12',
         kind: 'addBlockPhrase',
         level: 'aggressive',
         reason: 'Word',
-        value: 'jjj',
+        value: 'mmm',
       })
+    })
+
+    test('expect the trim to drop phrases, never a trusted sender removal', () => {
+      const words = 'aaa bbb ccc ddd eee fff ggg hhh iii jjj kkk lll mmm nnn ooo'
+      const senders = ['a@spam.example', 'b@spam.example', 'c@spam.example', 'd@spam.example', 'e@spam.example']
+      const removalAccount: Account = {
+        ...strictAccount,
+        spamFilter: { ...strictAccount.spamFilter, trustedSenders: senders },
+      }
+      const input = {
+        suggestions: [
+          ...words
+            .split(' ')
+            .slice(0, 10)
+            .map((value, index) => ({
+              kind: 'addBlockPhrase',
+              level: index < 5 ? 'broader' : 'aggressive',
+              reason: 'Word',
+              value,
+            })),
+          ...senders.map((value) => ({ kind: 'removeTrustedSender', reason: 'Trusted', value })),
+        ],
+      }
+
+      expect(
+        validateSuggestions(input, removalAccount, makeEmail({ senderAddresses: senders, text: words }), ids()).map(
+          ({ value }) => value,
+        ),
+      ).toEqual([...senders, 'aaa', 'bbb', 'ccc', 'ddd', 'fff', 'ggg', 'hhh'])
     })
   })
 })

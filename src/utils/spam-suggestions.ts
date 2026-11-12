@@ -45,6 +45,7 @@ const MIN_PHRASE_LENGTH = 3
 // one-word phrase that is one of these is dropped. Kept short on purpose: only words no spam rule should ever be.
 const EVERYDAY_WORDS = new Set([
   'and',
+  'com',
   'dear',
   'email',
   'for',
@@ -52,14 +53,23 @@ const EVERYDAY_WORDS = new Set([
   'have',
   'hello',
   'here',
+  'html',
+  'http',
+  'https',
+  'net',
+  'org',
   'our',
   'please',
+  'regards',
+  'thank',
   'thanks',
   'that',
   'the',
   'this',
+  'unsubscribe',
   'will',
   'with',
+  'www',
   'you',
   'your',
 ])
@@ -382,13 +392,15 @@ interface Candidate {
   value: string
 }
 
-// A phrase keeps the model's level, and one with a missing or unknown level is dropped. The other kinds get the
-// server's level, whatever the model sent; a sensitivity that is not "medium" or "high" is never a raise, so it is
-// dropped here as resolveCandidate would drop it.
+// A phrase keeps the model's level, and one with a missing or unknown level is dropped. A single word is never
+// targeted, since it is not distinctive enough to rarely catch wanted mail, so the server moves it to broader. The
+// other kinds get the server's level, whatever the model sent; a sensitivity that is not "medium" or "high" is never a
+// raise, so it is dropped here as resolveCandidate would drop it.
 const toLevel = (kind: SpamSuggestionKind, value: string, rawLevel: unknown): SpamSuggestionLevel | undefined => {
   if (kind === 'addBlockPhrase') {
-    const level = typeof rawLevel === 'string' ? rawLevel.trim().toLowerCase() : undefined
-    return SUGGESTION_LEVELS.find((allowed) => allowed === level)
+    const trimmed = typeof rawLevel === 'string' ? rawLevel.trim().toLowerCase() : undefined
+    const level = SUGGESTION_LEVELS.find((allowed) => allowed === trimmed)
+    return level === 'targeted' && toWords(value).length === 1 ? 'broader' : level
   }
   if (kind === 'removeTrustedSender') {
     return 'targeted'
@@ -477,16 +489,23 @@ const resolveCandidate = (
   return isRaise ? { ...candidate, value: sensitivity } : undefined
 }
 
-// Brings the groups (one per level, mildest first) down to MAX_SUGGESTIONS by dropping the last item of the largest
-// group, one at a time; a tie drops from the mildest level first. So no level is cut just for coming last in the
-// model's reply, and a trusted-sender removal or a sensitivity raise listed first survives a full set of phrases.
+const isPhrase = (candidate: Candidate): boolean => candidate.kind === 'addBlockPhrase'
+
+// Brings the groups (one per level, mildest first) down to MAX_SUGGESTIONS by dropping the last phrase of the largest
+// group that still has a phrase, one at a time; a tie drops from the most aggressive level first, since the mildest
+// levels are the ones picked by default. So no level is cut just for coming last in the model's reply, and a
+// trusted-sender removal or a sensitivity raise is never dropped while a phrase is left to drop.
 const trimToTotal = (groups: Candidate[][]): Candidate[][] => {
-  if (groups.flat().length <= MAX_SUGGESTIONS) {
+  const phraseGroupSizes = groups.map((group) => (group.some(isPhrase) ? group.length : 0))
+  const largest = Math.max(...phraseGroupSizes)
+  if (groups.flat().length <= MAX_SUGGESTIONS || largest === 0) {
     return groups
   }
-  const largest = Math.max(...groups.map((group) => group.length))
-  const trimIndex = groups.findIndex((group) => group.length === largest)
-  return trimToTotal(groups.map((group, index) => (index === trimIndex ? group.slice(0, -1) : group)))
+  const trimIndex = phraseGroupSizes.findLastIndex((size) => size === largest)
+  const dropIndex = groups[trimIndex].findLastIndex(isPhrase)
+  return trimToTotal(
+    groups.map((group, index) => (index === trimIndex ? group.filter((_, item) => item !== dropIndex) : group)),
+  )
 }
 
 const matchesBoth = (raw: string, sanitized: string): ((phraseWords: string[]) => boolean) => {
@@ -514,15 +533,21 @@ export const validateSuggestions = (
     subject: matchesBoth(fields.rawSubject, fields.subject),
   }
 
-  const accepted = rawSuggestions.map(toCandidate).reduce(
+  const candidates = rawSuggestions
+    .map(toCandidate)
+    .filter((candidate): candidate is Candidate => candidate !== undefined)
+  // The kinds that are not phrases go first (a stable reorder), so a trusted-sender removal or a sensitivity raise
+  // listed after a level's worth of phrases still gets a place under the per-level cap.
+  const ordered = [...candidates.filter((candidate) => !isPhrase(candidate)), ...candidates.filter(isPhrase)]
+  const accepted = ordered.reduce(
     (result: { candidates: Candidate[]; spamFilter: SpamFilter }, candidate) => {
       // One sensitivity change at most: "Medium" and "High" offered together are alternatives, and
       // picking both would leave the outcome to the order they were applied in.
       const isSecondSensitivity =
-        candidate?.kind === 'raiseSensitivity' && result.candidates.some((c) => c.kind === 'raiseSensitivity')
+        candidate.kind === 'raiseSensitivity' && result.candidates.some((c) => c.kind === 'raiseSensitivity')
       const isLevelFull =
-        result.candidates.filter((c) => c.level === candidate?.level).length >= MAX_SUGGESTIONS_PER_LEVEL
-      if (candidate === undefined || isSecondSensitivity || isLevelFull) {
+        result.candidates.filter((c) => c.level === candidate.level).length >= MAX_SUGGESTIONS_PER_LEVEL
+      if (isSecondSensitivity || isLevelFull) {
         return result
       }
       const resolved = resolveCandidate(result.spamFilter, candidate, emailMatchers)
@@ -532,7 +557,7 @@ export const validateSuggestions = (
     { candidates: [], spamFilter: account.spamFilter },
   ).candidates
 
-  // Mildest level first; within a level, the model's order.
+  // Mildest level first; within a level, the other kinds before phrases, each in the model's order.
   const byLevel = SUGGESTION_LEVELS.map((level) => accepted.filter((candidate) => candidate.level === level))
   return trimToTotal(byLevel)
     .flat()
