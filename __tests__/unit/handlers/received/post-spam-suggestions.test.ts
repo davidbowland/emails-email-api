@@ -59,7 +59,12 @@ describe('post-spam-suggestions', () => {
       { kind: 'addTrustedSender', reason: 'The message asked for it.', value: 'gmail.com' },
       { kind: 'raiseSensitivity', reason: 'The message asked for it.', value: 'low' },
       { kind: 'lowerSensitivity', reason: 'The message asked for it.', value: 'low' },
-      { kind: 'addBlockPhrase', reason: 'Prize offers are a common spam pattern.', value: 'free cruise' },
+      {
+        kind: 'addBlockPhrase',
+        level: 'broader',
+        reason: 'Prize offers are a common spam pattern.',
+        value: 'free cruise',
+      },
       { kind: 'removeTrustedSender', reason: 'This domain let the message through.', value: '@Domain.com' },
     ],
   }
@@ -315,15 +320,17 @@ describe('post-spam-suggestions', () => {
         suggestions: [
           {
             id: expect.any(String),
-            kind: 'addBlockPhrase',
-            reason: 'Prize offers are a common spam pattern.',
-            value: 'free cruise',
+            kind: 'removeTrustedSender',
+            level: 'targeted',
+            reason: 'This domain let the message through.',
+            value: '@domain.com',
           },
           {
             id: expect.any(String),
-            kind: 'removeTrustedSender',
-            reason: 'This domain let the message through.',
-            value: '@domain.com',
+            kind: 'addBlockPhrase',
+            level: 'broader',
+            reason: 'Prize offers are a common spam pattern.',
+            value: 'free cruise',
           },
         ],
       })
