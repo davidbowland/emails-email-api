@@ -156,9 +156,13 @@ export interface EmailOutbound {
 // able to loosen it.
 export type SpamSuggestionKind = 'addBlockPhrase' | 'removeTrustedSender' | 'raiseSensitivity'
 
+// How far a suggestion reaches, mildest first: targeted rarely catches wanted mail, aggressive catches the most.
+export type SpamSuggestionLevel = 'targeted' | 'broader' | 'aggressive'
+
 export interface SpamSuggestion {
   id: string
   kind: SpamSuggestionKind
+  level: SpamSuggestionLevel
   reason: string
   value: string
 }
